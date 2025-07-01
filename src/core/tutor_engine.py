@@ -20,9 +20,9 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.google_genai import GoogleGenAI
 
-import config 
-from models import ReasoningTriplet
-from prompts_template import JSON_CONTEXT_PROMPT, TUTOR_PROMPT_TEMPLATE, TUTOR_FOLLOWUP_TEMPLATE
+from . import config 
+from .models import ReasoningTriplet
+from .prompts_template import JSON_CONTEXT_PROMPT, TUTOR_PROMPT_TEMPLATE, TUTOR_FOLLOWUP_TEMPLATE
 
 class TutorEngine:
     def __init__(self):
@@ -34,13 +34,21 @@ class TutorEngine:
         # Set the LLM and Embed Model in the global Settings.
         # All subsequent LlamaIndex components will now use these by default.
         # This is the single source of truth.
-        Settings.llm = GoogleGenAI(model_name=config.GEMINI_MODEL_NAME, api_key=os.getenv("GOOGLE_API_KEY"))
+        Settings.llm = GoogleGenAI(
+            model_name=config.GEMINI_MODEL_NAME, 
+            api_key=os.getenv("GOOGLE_API_KEY"),
+            temperature=0.1  # Lower temperature for more consistent responses
+        )
         Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL_NAME)
         # --- END STEP 2 ---
 
         # We can still define a specialized tutor LLM if we want.
         # This allows using a different model/config for the conversational part.
-        self.llm_tutor = GoogleGenAI(model_name=config.GEMINI_MODEL_NAME, api_key=os.getenv("GOOGLE_API_KEY"))
+        self.llm_tutor = GoogleGenAI(
+            model_name=config.GEMINI_MODEL_NAME, 
+            api_key=os.getenv("GOOGLE_API_KEY"),
+            temperature=0.3  # Slightly higher temperature for more natural conversation
+        )
 
         # --- Component Setup (Now much cleaner and more reliable) ---
         storage_context = StorageContext.from_defaults(persist_dir=config.PERSISTENCE_DIR)
@@ -160,7 +168,16 @@ class TutorEngine:
         return tutor_response.text
 
     def get_guidance(self, user_question: str) -> str:
-        """This method remains unchanged."""
+        """Enhanced method with better error handling and input validation."""
+        # Input validation
+        if not user_question or not user_question.strip():
+            return "I'd be happy to help! Please ask me a question about sustainable design."
+        
+        # Sanitize and validate input
+        user_question = user_question.strip()
+        if len(user_question) > 1000:  # Limit very long questions
+            return "Your question is quite long. Could you please break it down into smaller, more specific questions?"
+        
         try:
             internal_triplet, source_nodes = self._stage1_internal_monologue(user_question)
             guidance = self._stage2_socratic_dialogue(internal_triplet, source_nodes)
@@ -169,8 +186,15 @@ class TutorEngine:
             print(f"--- FAILED TO PARSE LLM RESPONSE --- \n{e}\n---------------")
             return "I'm having a little trouble structuring my thoughts on that one. Could you try asking in a different way?"
         except Exception as e:
-            print(f"--- UNEXPECTED ERROR --- \n{e}\n---------------")
-            return "An unexpected error occurred. Please try again."
+            error_msg = str(e).lower()
+            # Handle specific error types more gracefully
+            if "429" in error_msg or "quota" in error_msg or "rate" in error_msg:
+                return "I'm experiencing high demand right now. Please wait a moment and try again."
+            elif "network" in error_msg or "connection" in error_msg:
+                return "I'm having trouble connecting. Please check your internet connection and try again."
+            else:
+                print(f"--- UNEXPECTED ERROR --- \n{e}\n---------------")
+                return "An unexpected error occurred. Please try again."
 
     def reset(self):
         """Reset conversation memory and turn counter."""

@@ -39,7 +39,7 @@ class TutorUI:
 
         # Check if the tutor engine is still loading
         if self.is_loading:
-            response = "🔄 Tutor is preparing. Please wait a moment..."
+            response = "Tutor is preparing. Please wait a moment..."
         elif self.tutor is None:
             response = "❌ Tutor initialization failed. Please refresh the page."
         else:
@@ -64,7 +64,7 @@ class TutorUI:
     def get_status(self):
         """Return current status of the tutor engine"""
         if self.is_loading:
-            return "🔄 Initializing..."
+            return "Initializing..."
         elif self.tutor is None:
             return "❌ Initialization failed"
         else:
@@ -76,7 +76,7 @@ class TutorUI:
         with gr.Blocks(title="Learning Tutor Bot") as demo:
             gr.Markdown(
                 """
-                # 🎓 Learning Tutor Bot
+                # Learning Tutor Bot
 
                 Ask questions about sustainable design!
                 """
@@ -112,7 +112,7 @@ class TutorUI:
                 refresh_btn = gr.Button("Refresh Status", variant="secondary")
 
             # Example questions
-            gr.Markdown("### 💡 Example Questions")
+            gr.Markdown("### Example Questions")
             with gr.Row():
                 example_btn1 = gr.Button("What is sustainable design?", size="sm")
                 example_btn2 = gr.Button("What are the key principles?", size="sm")
