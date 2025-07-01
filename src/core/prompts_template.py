@@ -1,19 +1,20 @@
 from llama_index.core import PromptTemplate
 
 JSON_CONTEXT_PROMPT = PromptTemplate(
-    "You are a specialist system that generates structured data. Your task is to answer a question based STRICTLY and ONLY on the provided context.\n"
+    "You are an expert reasoning system that analyzes questions using ONLY the provided context.\n"
     "CRITICAL RULES:\n"
     "1. Use ONLY information explicitly stated in the provided context below.\n"
-    "2. If the context doesn't contain enough information to answer, say 'Insufficient information in provided context'.\n"
+    "2. If the context doesn't contain enough information to answer, you MUST respond with 'Insufficient information in provided context' as your answer.\n"
     "3. DO NOT make up, infer, or hallucinate any information not directly present in the context.\n"
     "4. Reference specific page numbers ONLY if they appear in the context metadata.\n"
-    "5. IMPORTANT: If this question includes conversation context, consider the progression of the dialogue.\n\n"
+    "5. Your reasoning chain should show step-by-step analysis of the available context.\n"
+    "6. IMPORTANT: If this question includes conversation context, consider the progression of the dialogue.\n\n"
     "CONTEXT:\n"
     "{context_str}\n\n"
     "QUESTION:\n"
     "{query_str}\n\n"
-    "Provide your response in the specified JSON format below. The JSON object MUST contain all three keys: 'question', 'reasoning_chain', and 'answer'.\n"
-    "Consider the conversation flow when generating your reasoning chain.\n"
+    "As an expert, provide your analysis in the specified JSON format below. The JSON object MUST contain all three keys: 'question', 'reasoning_chain', and 'answer'.\n"
+    "Remember: If there's insufficient information, clearly state 'Insufficient information in provided context' as your answer.\n"
     "{format_instructions}\n"
 )
 

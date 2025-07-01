@@ -168,10 +168,14 @@ class TutorEngine:
         return tutor_response.text
 
     def get_guidance(self, user_question: str) -> str:
-        """Enhanced method with better error handling and input validation."""
+        """
+        Main method following the 2-Stage Reasoning Pipeline:
+        Stage 1: Expert Reasoning Model analyzes the question
+        Stage 2: Tutor Model guides the student using expert's reasoning
+        """
         # Input validation
         if not user_question or not user_question.strip():
-            return "I'd be happy to help! Please ask me a question about sustainable design."
+            return "I'd be happy to help! Please ask me a question."
         
         # Sanitize and validate input
         user_question = user_question.strip()
@@ -179,9 +183,20 @@ class TutorEngine:
             return "Your question is quite long. Could you please break it down into smaller, more specific questions?"
         
         try:
+            # Stage 1: Expert Reasoning Model creates ReasoningTriplet
             internal_triplet, source_nodes = self._stage1_internal_monologue(user_question)
+            
+            # Check if the reasoning model found sufficient information
+            if (internal_triplet and 
+                internal_triplet.answer and 
+                "insufficient information" in internal_triplet.answer.lower()):
+                return ("I don't have enough information about that topic in my knowledge base. "
+                       "Could you please ask about something related to the materials we're studying?")
+            
+            # Stage 2: Tutor Model guides student using expert's reasoning
             guidance = self._stage2_socratic_dialogue(internal_triplet, source_nodes)
             return guidance
+            
         except (ValidationError, ValueError) as e:
             print(f"--- FAILED TO PARSE LLM RESPONSE --- \n{e}\n---------------")
             return "I'm having a little trouble structuring my thoughts on that one. Could you try asking in a different way?"
