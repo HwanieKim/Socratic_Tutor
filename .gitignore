@@ -195,3 +195,7 @@ logs/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# PDF files (학습 자료)
+*.pdf
+data/*.pdf
