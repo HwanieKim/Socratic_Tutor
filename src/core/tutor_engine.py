@@ -22,7 +22,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 
 from . import config 
 from .models import ReasoningTriplet
-from .prompts_template import JSON_CONTEXT_PROMPT, TUTOR_PROMPT_TEMPLATE, TUTOR_FOLLOWUP_TEMPLATE
+from .prompts_template import JSON_CONTEXT_PROMPT, TUTOR_TEMPLATE
 
 class TutorEngine:
     def __init__(self):
@@ -30,7 +30,6 @@ class TutorEngine:
         if not os.path.exists(config.PERSISTENCE_DIR):
             raise FileNotFoundError(f"Index not found at {config.PERSISTENCE_DIR}.")
         
-        # --- THE FIX: STEP 2 ---
         # Set the LLM and Embed Model in the global Settings.
         # All subsequent LlamaIndex components will now use these by default.
         # This is the single source of truth.
@@ -40,9 +39,7 @@ class TutorEngine:
             temperature=0.1  # Lower temperature for more consistent responses
         )
         Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL_NAME)
-        # --- END STEP 2 ---
-
-        # We can still define a specialized tutor LLM if we want.
+        
         # This allows using a different model/config for the conversational part.
         self.llm_tutor = GoogleGenAI(
             model_name=config.GEMINI_MODEL_NAME, 
@@ -50,20 +47,16 @@ class TutorEngine:
             temperature=0.3  # Slightly higher temperature for more natural conversation
         )
 
-        # --- Component Setup (Now much cleaner and more reliable) ---
+        # --- Component Setup  ---
         storage_context = StorageContext.from_defaults(persist_dir=config.PERSISTENCE_DIR)
-        # We no longer need to pass `embed_model`. It uses the global Setting.
+    
+
         index = load_index_from_storage(storage_context)
-        # Since the CondenseQuestionChatEngine is having issues, let's use a simpler approach
-        # For a tutor system, most questions are standalone and don't need complex condensation
         self.memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
         
         # For now, we'll skip the condenser and just use the original question
         # This is more reliable for the tutor use case
         self.use_condenser = False
-        
-        # Track conversation turns for different response styles
-        self.conversation_turn = 0
 
         # --- Engine 2: JSON Generation Specialist (Also simplified) ---
         self.pydantic_parser = PydanticOutputParser(ReasoningTriplet)
@@ -79,7 +72,21 @@ class TutorEngine:
 
     def _stage1_internal_monologue(self, user_question: str) -> tuple[ReasoningTriplet, list]:
         """
-        Generate internal reasoning about the user's question using retrieved context.
+        🧠 Stage 1: Expert Reasoning Model
+        
+        Role: Acts as a domain expert who analyzes the question using the knowledge base
+        
+        Process:
+        1. Retrieves relevant context from vector database (similarity search)
+        2. Combines question + context + conversation history
+        3. Expert LLM generates structured reasoning (ReasoningTriplet):
+           - question: The question being analyzed
+           - reasoning_chain: Expert's step-by-step thinking process
+           - answer: Expert's conclusion based on evidence
+        
+        Output: ReasoningTriplet + source_nodes (for citations)
+        
+        This stage captures the EXPERT KNOWLEDGE that will guide the tutoring process.
         """
         if self.use_condenser:
             condensed_response = self.condenser_engine.chat(user_question)
@@ -125,53 +132,86 @@ class TutorEngine:
 
     def _stage2_socratic_dialogue(self, triplet: ReasoningTriplet, source_nodes: list) -> str:
         """
-        This method uses our specialized `llm_tutor` for the conversational part.
-        Uses different templates based on conversation turn.
-        """
-        if not triplet or not triplet.reasoning_chain:
-            return "I'm having trouble reasoning through that. Could you please rephrase your question?"
+        🎓 Stage 2: Unified Intent Classification + Socratic Tutoring
 
-        first_reasoning_step = triplet.reasoning_chain.split('\n')[0].strip()
-        
+        Combines intent classification and Socratic response generation in one LLM call,
+        using full context awareness.
+        """
+        # Prepare reasoning step
+        first_reasoning_step = triplet.reasoning_chain.split('\n')[0].strip() if triplet.reasoning_chain else ""
+
+        # Prepare source information and context snippet
         source_info = "N/A"
         context_snippet = "No specific context snippet found."
         if source_nodes:
             top_node = source_nodes[0]
             context_snippet = top_node.node.get_content()
-            metadata = top_node.node.metadata
-            source_info = f"Source: {metadata.get('file_name', 'N/A')}, Page: {metadata.get('page_label', 'N/A')}"
-        
-        # Increment conversation turn
-        self.conversation_turn += 1
-        
-        # Choose template based on conversation turn
-        if self.conversation_turn == 1:
-            # First turn: Use detailed template with source citation
-            tutor_prompt = TUTOR_PROMPT_TEMPLATE.format(
-                context_snippet=context_snippet,
-                source_info=source_info,
-                reasoning_step=first_reasoning_step
-            )
-        else:
-            # Subsequent turns: Use follow-up template with page suggestion
-            tutor_prompt = TUTOR_FOLLOWUP_TEMPLATE.format(
-                source_info=source_info,
-                reasoning_step=first_reasoning_step
-            )
-        
-        # Using our specialized tutor LLM for the final friendly response
-        tutor_response = self.llm_tutor.complete(tutor_prompt)
-        
-        # Manually add the AI's final response to memory to complete the turn
-        self.memory.put(ChatMessage(role=MessageRole.ASSISTANT, content=tutor_response.text))
-        
-        return tutor_response.text
+            md = top_node.node.metadata
+            source_info = f"Source: {md.get('file_name', 'N/A')}, Page: {md.get('page_label', 'N/A')}"
+
+        # Build conversation history snippet
+        recent = self.memory.get_all()
+        conversation_context = "This is the start of our conversation."
+        last_user_message_content = ""
+        if recent:
+            parts = []
+            for msg in recent[-4:]:
+                role = "Student" if msg.role == MessageRole.USER else "Tutor"
+                parts.append(f"{role}: {msg.content}")
+            conversation_context = "\n".join(parts)
+            
+            # The last message added in stage 1 is the user's current question
+            if recent[-1].role == MessageRole.USER:
+                last_user_message_content = recent[-1].content
+
+        # Create unified prompt
+        tutor_prompt = TUTOR_TEMPLATE.format(
+            context_snippet=context_snippet,
+            source_info=source_info,
+            reasoning_step=first_reasoning_step,
+            conversation_context=conversation_context,
+            user_input=last_user_message_content
+        )
+        try:
+            res = self.llm_tutor.complete(tutor_prompt)
+            text = res.text
+            # Extract actual response after 'Your response:' delimiter
+            actual = text.split('Your response:')[-1].strip()
+            # Log intent for debugging
+            intent = "unknown"
+            for line in text.split('\n'):
+                if line.startswith('Intent:'):
+                    intent = line.split('Intent:')[1].strip()
+                    break
+            print(f"DEBUG: Classified intent as: {intent}")
+            # Add to memory
+            self.memory.put(ChatMessage(role=MessageRole.ASSISTANT, content=actual))
+            return actual
+        except Exception as e:
+            print(f"Error in unified tutoring: {e}")
+            return "I encountered an issue while generating a response. Could you please rephrase your question?"
 
     def get_guidance(self, user_question: str) -> str:
         """
-        Main method following the 2-Stage Reasoning Pipeline:
-        Stage 1: Expert Reasoning Model analyzes the question
-        Stage 2: Tutor Model guides the student using expert's reasoning
+        🧠 2-Stage Reasoning Pipeline for AI Tutoring:
+        
+        The core philosophy: Expert Reasoning Model → Socratic Tutor Model
+        
+        Stage 1 (Expert): Analyzes question + knowledge base → Creates ReasoningTriplet
+        - question: Original user question  
+        - reasoning_chain: Expert's step-by-step thinking process
+        - answer: Expert's conclusion
+        
+        Stage 2 (Tutor): Uses Expert's reasoning → Guides student with Socratic questions
+        - Takes Expert's reasoning_chain as input
+        - Generates guiding questions instead of direct answers
+        - Helps student discover the path to the answer
+        
+        This design ensures:
+        - Expert knowledge is captured in reasoning_chain
+        - Students learn through guided discovery
+        - Answers are grounded in knowledge base
+        - Natural topic relevance (no hardcoded filters)
         """
         # Input validation
         if not user_question or not user_question.strip():
@@ -183,17 +223,18 @@ class TutorEngine:
             return "Your question is quite long. Could you please break it down into smaller, more specific questions?"
         
         try:
-            # Stage 1: Expert Reasoning Model creates ReasoningTriplet
+            # 🧠 Stage 1: Expert Reasoning Model creates ReasoningTriplet
             internal_triplet, source_nodes = self._stage1_internal_monologue(user_question)
             
-            # Check if the reasoning model found sufficient information
+            # Check if the Expert found sufficient information in knowledge base
             if (internal_triplet and 
                 internal_triplet.answer and 
-                "insufficient information" in internal_triplet.answer.lower()):
+                ("insufficient information" in internal_triplet.answer.lower() or
+                 "no specific context" in internal_triplet.answer.lower())):
                 return ("I don't have enough information about that topic in my knowledge base. "
                        "Could you please ask about something related to the materials we're studying?")
             
-            # Stage 2: Tutor Model guides student using expert's reasoning
+            # 🎓 Stage 2: Tutor Model guides student using Expert's reasoning
             guidance = self._stage2_socratic_dialogue(internal_triplet, source_nodes)
             return guidance
             
@@ -212,6 +253,5 @@ class TutorEngine:
                 return "An unexpected error occurred. Please try again."
 
     def reset(self):
-        """Reset conversation memory and turn counter."""
+        """Reset conversation memory."""
         self.memory.reset()
-        self.conversation_turn = 0

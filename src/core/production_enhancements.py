@@ -17,17 +17,26 @@ from datetime import datetime, timedelta
 class ProductionEnhancements:
     def __init__(self, knowledge_base_index=None):
         self.rate_limiter = RateLimiter()
-        self.topic_filter = TopicRelevanceFilter(knowledge_base_index)
         self.metrics = ConversationMetrics()
         self.logger = EnhancedLogger()
+        
+        # Minimal harmful content patterns (optional safety check)
+        self.harmful_patterns = [
+            r'\b(hate|violence|illegal|harmful)\b',
+            r'\b(offensive|inappropriate|adult)\b'
+        ]
     
     def is_request_allowed(self, user_id: str = "default") -> bool:
         """Check if request is within rate limits"""
         return self.rate_limiter.is_allowed(user_id)
     
-    def is_topic_relevant(self, question: str, conversation_context: str = None) -> bool:
-        """Check if question is related to the knowledge base content"""
-        return self.topic_filter.is_relevant(question, conversation_context)
+    def contains_harmful_content(self, question: str) -> bool:
+        """Basic safety check for obviously harmful content"""
+        question_lower = question.lower().strip()
+        for pattern in self.harmful_patterns:
+            if re.search(pattern, question_lower):
+                return True
+        return False
     
     def log_interaction(self, question: str, response: str, user_id: str = "default"):
         """Log user interaction for analysis"""
@@ -60,56 +69,6 @@ class RateLimiter:
             return True
         
         return False
-
-class TopicRelevanceFilter:
-    def __init__(self, knowledge_base_index=None, similarity_threshold=0.3):
-        """
-        Reasoning-Model-First Topic Relevance Filter
-        
-        This filter now primarily relies on the reasoning model's judgment.
-        Hard-coded patterns are kept minimal for obviously harmful content only.
-        
-        Args:
-            knowledge_base_index: LlamaIndex VectorStoreIndex for semantic similarity
-            similarity_threshold: Minimum similarity score for relevance (0.0-1.0)
-        """
-        self.knowledge_base_index = knowledge_base_index
-        self.similarity_threshold = similarity_threshold
-        
-        # MINIMAL patterns for obviously harmful/inappropriate content only
-        self.harmful_patterns = [
-            r'\b(hate|violence|illegal|harmful)\b',
-            r'\b(offensive|inappropriate|adult)\b'
-        ]
-        
-        # Remove most hard-coded topic filters - let reasoning model decide
-    
-    def is_relevant(self, question: str, conversation_context: str = None) -> bool:
-        """
-        SIMPLIFIED: Check only for harmful content, let reasoning model handle topic relevance
-        
-        Args:
-            question: User's question
-            conversation_context: Previous conversation context
-            
-        Returns:
-            bool: True unless clearly harmful content
-        """
-        question_lower = question.lower().strip()
-        
-        # Handle empty inputs
-        if not question_lower or len(question_lower) < 2:
-            return False
-        
-        # Check only for harmful content
-        for pattern in self.harmful_patterns:
-            if re.search(pattern, question_lower):
-                return False
-        
-        # For all other cases, let the reasoning model decide
-        return True
-    
-    # Removed complex topic filtering methods - reasoning model handles this now
 
 class ConversationMetrics:
     def __init__(self):
@@ -188,33 +147,51 @@ class ProductionTutorEngine:
         self.conversation_history = []
     
     def get_guidance(self, user_question: str, user_id: str = "default") -> str:
-        """Enhanced guidance method with production features - Reasoning Model First Approach"""
+        """
+        Enhanced guidance method with production features
         
-        # Rate limiting check
+        Pipeline: Rate Limiting → Input Validation → Expert Reasoning → Socratic Tutoring
+        The Expert Reasoning Model decides if the question can be answered from the knowledge base.
+        No hardcoded topic filtering - the reasoning model handles relevance naturally.
+        """
+        
+        # 1. Rate limiting check
         if not self.enhancements.is_request_allowed(user_id):
             return "You're asking questions quite frequently. Please wait a moment before asking again."
         
-        # Input validation
+        # 2. Input validation
         if not user_question or not user_question.strip():
             return "I'd be happy to help! Please ask me a question."
         
-        # CORE CHANGE: Let the reasoning model decide first
-        # Get the reasoning triplet to see if the question can be answered
+        # Sanitize input
+        user_question = user_question.strip()
+        if len(user_question) > 1000:
+            return "Your question is quite long. Could you please break it down into smaller, more specific questions?"
+        
+        # 3. Basic safety check (optional)
+        if self.enhancements.contains_harmful_content(user_question):
+            return "I can't help with that type of content. Please ask about educational topics."
+        
+        # 4. Let the Expert Reasoning Model decide (Stage 1 + Stage 2 combined)
+        # This follows the original 2-Stage Reasoning design
         try:
+            # Stage 1: Expert analyzes question and creates reasoning triplet
             reasoning_triplet, source_nodes = self.engine._stage1_internal_monologue(user_question)
             
-            # Check if reasoning model found sufficient information
+            # Check if Expert found sufficient information in knowledge base
             if (reasoning_triplet and 
                 reasoning_triplet.answer and 
-                "insufficient information" in reasoning_triplet.answer.lower()):
+                ("insufficient information" in reasoning_triplet.answer.lower() or
+                 "no specific context" in reasoning_triplet.answer.lower())):
                 return ("I don't have enough information about that topic in my knowledge base. "
-                       "Could you please ask about the subject matter we're studying?")
+                       "Could you please ask about something related to the materials we're studying?")
             
-            # If reasoning model found relevant information, proceed with Socratic dialogue
+            # Stage 2: Tutor guides student using Expert's reasoning
             response = self.engine._stage2_socratic_dialogue(reasoning_triplet, source_nodes)
             
         except Exception as e:
-            # Fallback to base engine if there's an error
+            print(f"Pipeline error: {e}")
+            # Fallback to base engine's complete pipeline
             response = self.engine.get_guidance(user_question)
         
         # Update conversation history
@@ -271,24 +248,24 @@ def test_production_features():
         print(f"  Request {i+1}: {'✅ Allowed' if allowed else '❌ Rate limited'}")
     
     # Test topic relevance
-    print("\n2. Testing Enhanced Topic Relevance Filter:")
-    topic_filter = TopicRelevanceFilter()  # No knowledge base for this test
+    print("\n2. Testing Basic Safety Check:")
+    enhancements = ProductionEnhancements()
     
     test_questions = [
-        ("What is this concept?", "Follow-up (Relevant)"),
-        ("How do I bake a cake?", "Irrelevant"),
-        ("What are the principles involved?", "Academic (Relevant)"),
-        ("What's the weather like?", "Irrelevant"),
-        ("Can you explain more?", "Follow-up (Relevant)"),
-        ("Tell me about football", "Irrelevant"),
-        ("How does this process work?", "Academic (Relevant)")
+        ("What is this concept?", "Safe"),
+        ("How do I bake a cake?", "Safe"),
+        ("What are the principles involved?", "Safe"),
+        ("What's the weather like?", "Safe"),
+        ("Can you explain more?", "Safe"),
+        ("This is harmful content", "Potentially Harmful"),
+        ("How does this process work?", "Safe")
     ]
     
     for question, expected in test_questions:
-        relevant = topic_filter.is_relevant(question)
-        expected_relevant = "Relevant" in expected
-        status = "✅" if relevant == expected_relevant else "❌"
-        print(f"  {status} '{question}' -> {'Relevant' if relevant else 'Irrelevant'} (Expected: {expected})")
+        is_harmful = enhancements.contains_harmful_content(question)
+        status = "✅" if (not is_harmful and expected == "Safe") or (is_harmful and expected == "Potentially Harmful") else "❌"
+        safety_status = "Safe" if not is_harmful else "Potentially Harmful"
+        print(f"  {status} '{question}' -> {safety_status} (Expected: {expected})")
     
     # Test metrics
     print("\n3. Testing Metrics:")
