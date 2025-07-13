@@ -96,7 +96,7 @@ def reset_conversation():
     """Reset the conversation"""
     if prod_engine:
         prod_engine.reset()
-    return [], "Conversation reset. How can I help you with sustainable design?"
+    return [],""
 
 def get_system_metrics():
     """Get system metrics for monitoring"""

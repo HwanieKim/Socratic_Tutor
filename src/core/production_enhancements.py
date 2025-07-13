@@ -149,12 +149,7 @@ class ProductionTutorEngine:
     def get_guidance(self, user_question: str, user_id: str = "default") -> str:
         """
         Enhanced guidance method with production features
-        
-        Pipeline: Rate Limiting → Input Validation → Expert Reasoning → Socratic Tutoring
-        The Expert Reasoning Model decides if the question can be answered from the knowledge base.
-        No hardcoded topic filtering - the reasoning model handles relevance naturally.
         """
-        
         # 1. Rate limiting check
         if not self.enhancements.is_request_allowed(user_id):
             return "You're asking questions quite frequently. Please wait a moment before asking again."
@@ -172,28 +167,14 @@ class ProductionTutorEngine:
         if self.enhancements.contains_harmful_content(user_question):
             return "I can't help with that type of content. Please ask about educational topics."
         
-        # 4. Let the Expert Reasoning Model decide (Stage 1 + Stage 2 combined)
-        # This follows the original 2-Stage Reasoning design
+        # 4. Delegate to base engine pipeline
         try:
-            # Stage 1: Expert analyzes question and creates reasoning triplet
-            reasoning_triplet, source_nodes = self.engine._stage1_internal_monologue(user_question)
-            
-            # Check if Expert found sufficient information in knowledge base
-            if (reasoning_triplet and 
-                reasoning_triplet.answer and 
-                ("insufficient information" in reasoning_triplet.answer.lower() or
-                 "no specific context" in reasoning_triplet.answer.lower())):
-                return ("I don't have enough information about that topic in my knowledge base. "
-                       "Could you please ask about something related to the materials we're studying?")
-            
-            # Stage 2: Tutor guides student using Expert's reasoning
-            response = self.engine._stage2_socratic_dialogue(reasoning_triplet, source_nodes)
-            
+            # Use the core TutorEngine pipeline for RAG and Socratic tutoring
+            response = self.engine.get_guidance(user_question)
         except Exception as e:
             print(f"Pipeline error: {e}")
-            # Fallback to base engine's complete pipeline
-            response = self.engine.get_guidance(user_question)
-        
+            response = "An unexpected error occurred. Please try again."
+ 
         # Update conversation history
         self.conversation_history.append({
             'question': user_question,
