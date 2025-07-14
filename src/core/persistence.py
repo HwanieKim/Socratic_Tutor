@@ -3,9 +3,9 @@ import asyncio
 from dotenv import load_dotenv
 import glob
 
+from llama_cloud_services import LlamaParse
 from llama_index.core.indices import MultiModalVectorStoreIndex
 from llama_index.embeddings.voyageai import VoyageEmbedding
-from llama_cloud_services import LlamaParse
 from sqlalchemy import true
 load_dotenv()
 
@@ -13,7 +13,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 PERSISTENCE_DIR = os.path.join(PROJECT_ROOT, "persistent_index")
 DATA_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, "data", "documents")
 DATA_IMAGES_DIR = os.path.join(PROJECT_ROOT, "data", "images")
-EMBED_MODEL_NAME = "BAAI/bge-small-en-v1.5"
+
 
 
 async def create_index():

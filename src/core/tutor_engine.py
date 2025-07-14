@@ -15,9 +15,11 @@ from llama_index.core import (
 
 from llama_index.core.output_parsers import PydanticOutputParser
 from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.retrievers import VectorIndexRetriever, QueryFusionRetriever
+from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.voyageai import VoyageEmbedding
 from llama_index.llms.google_genai import GoogleGenAI
 
 from . import config 
@@ -44,7 +46,11 @@ class TutorEngine:
             api_key=os.getenv("GOOGLE_API_KEY"),
             temperature=0.1  # Lower temperature for more consistent responses
         )
-        Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL_NAME)
+        Settings.embed_model = VoyageEmbedding(
+            model_name="voyage-multimodal-3",
+            voyage_api_key=os.getenv("VOYAGE_API_KEY"),
+            truncation=True
+            )
         
         # This allows using a different model/config for the conversational part.
         self.llm_tutor = GoogleGenAI(
@@ -53,7 +59,7 @@ class TutorEngine:
             temperature=0.3  # Slightly higher temperature for more natural conversation
         )
 
-        # --- [NEW] Context Caching ---
+        # --- Context Caching ---
         # Cache the reasoning context for the current topic to avoid re-running RAG
         # on every follow-up question. This is reset when a new topic is detected.
         self.current_topic_triplet = None
@@ -61,8 +67,8 @@ class TutorEngine:
 
         # --- Component Setup  ---
         storage_context = StorageContext.from_defaults(persist_dir=config.PERSISTENCE_DIR)
-    
-
+        
+        # Load the index from storage
         index = load_index_from_storage(storage_context)
         self.memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
         
@@ -73,19 +79,40 @@ class TutorEngine:
         # --- Engine 2: JSON Generation Specialist (Also simplified) ---
         self.pydantic_parser = PydanticOutputParser(ReasoningTriplet)
 
-        # [FIX] The JSON prompt template is now a single, robust version.
+        #  The JSON prompt template is now a single, robust version.
         json_prompt_template = JSON_CONTEXT_PROMPT.partial_format(
             format_instructions=self.pydantic_parser.get_format_string()
         )
+
+        # --- Fusion Retriever configuration ---
+        #  Vector Retriever (semantic similarity search)
+        vector_retriever = VectorIndexRetriever(
+            index=index,
+            similarity_top_k=7 
+        )
+
+        # BM25 Retriever (keyword based search)
+        all_nodes = list(index.docstore.docs.values())
+        bm25_retriever = BM25Retriever.from_defaults(
+            nodes=all_nodes, 
+            similarity_top_k=7 
+        )
         
+        hybrid_retriever = QueryFusionRetriever(
+            retrievers=[vector_retriever, bm25_retriever],
+            similirarity_top_k=5,
+            num_queries=1,
+            mode="reciprocal_rerank"
+        )
+       
         # This engine will also inherit the correct LLM from Settings.
         self.json_generator_engine = RetrieverQueryEngine.from_args(
-            retriever=index.as_retriever(similarity_top_k=3),
+            retriever=hybrid_retriever,
             text_qa_template=json_prompt_template,
             response_mode="compact" 
         )
         
-        # --- [NEW] Pydantic Parsers for Structured Output ---
+        # ---  Pydantic Parsers for Structured Output ---
         self.eval_parser = PydanticOutputParser(AnswerEvaluation)
 
     def _stage1_internal_monologue(self, user_question: str) -> tuple[ReasoningTriplet, list]:
@@ -95,7 +122,7 @@ class TutorEngine:
         Role: Acts as a domain expert who analyzes the question using the knowledge base
         
         Process:
-        1. Retrieves relevant context from vector database (similarity search)
+        1. Retrieves relevant context from vector database (similarity search + keyword search)
         2. Combines question + context + conversation history
         3. Expert LLM generates structured reasoning (ReasoningTriplet):
            - question: The question being analyzed
@@ -276,7 +303,7 @@ class TutorEngine:
 
     def _stage2_socratic_dialogue(self, answer_evaluation: AnswerEvaluation = None) -> str:
         """
-        [REFACTORED] Stage 2: Socratic Dialogue Generation
+        Stage 2: Socratic Dialogue Generation
 
         Generates a Socratic response using the expert context, conversation history,
         and now, a structured AnswerEvaluation object.
@@ -310,7 +337,7 @@ class TutorEngine:
         last_user_message_content = ""
         if recent:
             parts = []
-            for msg in recent[-5:-1]:
+            for msg in recent[-5:-1]: # Use last 5 messages excluding the latest
                 role = "Student" if msg.role == MessageRole.USER else "Tutor"
                 parts.append(f"{role}: {msg.content}")
             
@@ -355,7 +382,7 @@ class TutorEngine:
         self.memory.put(ChatMessage(role=MessageRole.USER, content=user_question))
 
         try:
-            # 🚀 Stage 0: Classify intent to decide the pipeline path
+            #  Stage 0: Classify intent to decide the pipeline path
             intent = self._stage0_intent_classification()
 
             if intent == 'new_question':
@@ -377,27 +404,27 @@ class TutorEngine:
 
     def _pipeline_new_question(self, user_question: str) -> str:
         """
-        [NEW] Pipeline for handling entirely new questions.
+        Pipeline for handling entirely new questions.
         """
         print("DEBUG: Executing pipeline: new_question")
-        # 🧠 Stage 1: Expert Reasoning Model creates ReasoningTriplet
+        #  Stage 1: Expert Reasoning Model creates ReasoningTriplet
         internal_triplet, source_nodes = self._stage1_internal_monologue(user_question)
         
         # Check if the Expert found sufficient information
         if (not internal_triplet or not internal_triplet.answer or 
             "insufficient information" in internal_triplet.answer.lower()):
-            # [FIX] Clear the cache if the new topic has no information
+            # Clear the cache if the new topic has no information
             self.current_topic_triplet = None
             self.current_topic_source_nodes = None
             self.memory.put(ChatMessage(role=MessageRole.ASSISTANT, content="I can't find that in my knowledge base."))
             return ("I don't have enough information about that topic in my knowledge base. "
                    "Could you please ask about something related to the materials we're studying?")
         
-        # [NEW] Cache the new context
+        # Cache the new context
         self.current_topic_triplet = internal_triplet
         self.current_topic_source_nodes = source_nodes
         
-        # 🎓 Stage 2: Tutor Model guides student (no answer evaluation needed yet)
+        #  Stage 2: Tutor Model guides student (no answer evaluation needed yet)
         return self._stage2_socratic_dialogue()
 
     def _pipeline_follow_up(self, user_question: str) -> str:
