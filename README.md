@@ -9,7 +9,7 @@ An AI-powered tutoring system that uses Socratic dialogue methodology to help st
 -   **Intelligent Scaffolding**: 4-level progressive support system when students struggle
 -   **Topic Relevance Filtering**: Keeps conversations focused on course materials
 -   **Production-Ready**: Rate limiting, error handling, and conversation metrics
--   **Real-time Web UI**: Clean Gradio interface for seamless interaction
+-   **Real-time Web UI**: Clean Gradio interface with lazy index creation
 
 ## 🏗️ System Architecture
 
@@ -17,7 +17,7 @@ An AI-powered tutoring system that uses Socratic dialogue methodology to help st
 
 1. **TutorEngine** (`src/core/tutor_engine.py`): Main orchestration engine
 2. **ProductionTutorEngine** (`src/core/production_enhancements.py`): Production wrapper with safety features
-3. **Multi-Modal RAG**: Hybrid retrieval combining vector search and BM25
+3. **Multi-Modal RAG**: Hybrid retrieval combining vector search and document processing
 4. **Scaffolding System**: Progressive help mechanism
 
 ### Pipeline Stages
@@ -80,18 +80,21 @@ mkdir -p data/documents
 ### 4. Launch the Application
 
 ```bash
-# Production UI (recommended)
+# Production UI (recommended) - with built-in index creation
 python src/ui/gradio_ui_production.py
-
-# Development UI (faster startup)
-python src/ui/gradio_ui_fast.py
 ```
+
+The application will start on `http://127.0.0.1:7862`
 
 ### 5. Initialize the System
 
 1. Open your browser to `http://127.0.0.1:7862`
-2. Click "Create Index" to process your documents
-3. Click "Initialize Engine" to start the tutor
+2. **First Time Setup**:
+    - Click "1. Create Index" to process your PDF documents
+    - Wait for processing to complete (may take several minutes)
+    - Click "2. Initialize Engine" to start the tutor
+3. **Subsequent Uses**:
+    - If index exists, just click "2. Initialize Engine"
 4. Begin asking questions about your documents!
 
 ## 📁 Project Structure
@@ -109,8 +112,7 @@ example_rag/
 │   │   └── config.py                # System configuration
 │   └── ui/
 │       ├── __init__.py              # UI package
-│       ├── gradio_ui_production.py  # Production web interface
-│       └── gradio_ui_fast.py        # Development interface
+│       └── gradio_ui_production.py  # Production web interface
 ├── data/
 │   ├── documents/                   # PDF files (user provided)
 │   └── images/                      # Extracted images (auto-generated)
@@ -175,6 +177,7 @@ PERSISTENCE_DIR = "persistent_index"
 
 ### Production Features
 
+-   **Lazy Index Creation**: Create index through web UI when needed
 -   **Rate Limiting**: Prevents API quota exhaustion
 -   **Input Validation**: Length limits and content filtering
 -   **Error Handling**: Graceful degradation for API failures
@@ -186,9 +189,9 @@ PERSISTENCE_DIR = "persistent_index"
 ### Basic Usage
 
 ```python
-from src.core import TutorEngine
+from src.core.tutor_engine import TutorEngine
 
-# Initialize engine
+# Initialize engine (requires existing index)
 engine = TutorEngine()
 
 # Get response
@@ -202,11 +205,12 @@ engine.reset()
 ### Production Usage
 
 ```python
-from src.core import ProductionTutorEngine, TutorEngine
+from src.core.tutor_engine import TutorEngine
+from src.core.production_enhancements import ProductionTutorEngine
 
 # Enhanced engine with safety features
 base_engine = TutorEngine()
-prod_engine = ProductionTutorEngine(base_engine=base_engine)
+prod_engine = ProductionTutorEngine(base_engine)
 
 # Get response with rate limiting
 response = prod_engine.get_guidance("Question here", user_id="student123")
@@ -215,8 +219,42 @@ response = prod_engine.get_guidance("Question here", user_id="student123")
 metrics = prod_engine.get_metrics()
 ```
 
+### Index Creation
+
+```python
+from src.core.persistence import create_index
+import asyncio
+
+# Create index programmatically
+asyncio.run(create_index())
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+1. **"No index found" error**:
+
+    - Use the web UI to create index: Click "1. Create Index"
+    - Ensure PDF files are in `data/documents/` directory
+
+2. **Index creation fails**:
+
+    - Check API keys in `.env` file
+    - Verify PDF files exist in `data/documents/`
+    - Check internet connection for API calls
+
+3. **Engine initialization fails**:
+    - Ensure index was created successfully
+    - Check for required index files in `persistent_index/`
+
+### System Requirements
+
+-   **Memory**: 4GB+ RAM recommended for document processing
+-   **Storage**: 1GB+ for index files (varies by document size)
+-   **Network**: Stable internet for API calls during index creation
 
 **Version**: 1.0.0  
-**Last Updated**: December 2024  
+**Last Updated**: July 2025  
 **Python Version**: 3.8+  
 **License**: MIT

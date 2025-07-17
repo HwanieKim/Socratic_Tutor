@@ -11,10 +11,9 @@ llama-index-retrievers-bm25>=0.1.0
 
 # LlamaCloud for document parsing
 llama-cloud>=0.0.6
+llama-cloud-services>=0.1.0  
+sqlalchemy>=2.0.0
 
 # UI framework
 gradio>=4.0.0
 
-# Additional dependencies
-asyncio-run>=0.1.0
-glob2>=0.7
