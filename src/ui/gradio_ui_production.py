@@ -73,7 +73,7 @@ def initialize_engine():
 def get_response(user_input, history, user_id="default"):
     """Get response from the tutor engine"""
     if not prod_engine:
-        return history + [("System", "Please wait while the engine initializes...")], ""
+        return history + [{"role": "assistant", "content": "Please wait while the engine initializes..."}], ""
     
     if not user_input.strip():
         return history, ""
@@ -82,21 +82,23 @@ def get_response(user_input, history, user_id="default"):
         # Get response from production engine
         response = prod_engine.get_guidance(user_input, user_id)
         
-        # Add to conversation history
-        history.append((user_input, response))
+        # Add to conversation history using messages format
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": response})  # Changed from "tutor" to "assistant"
         
         return history, ""
         
     except Exception as e:
         error_response = f"I apologize, but I encountered an error: {str(e)}. Please try again."
-        history.append((user_input, error_response))
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": error_response})  # Changed from "tutor" to "assistant"
         return history, ""
 
 def reset_conversation():
     """Reset the conversation"""
     if prod_engine:
         prod_engine.reset()
-    return [],""
+    return [], ""  # Return empty list for messages format
 
 def get_system_metrics():
     """Get system metrics for monitoring"""
@@ -118,42 +120,51 @@ def get_system_metrics():
 def create_index():
     """Create the vector index from documents"""
     try:
-        from core.config import PERSISTENCE_DIR, PROJECT_ROOT
-        from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
-        from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-        from core.config import EMBED_MODEL_NAME
+        from core.persistence import create_index as create_index_async
+        import asyncio
         
-        data_dir = os.path.join(PROJECT_ROOT, "data")
+        # Check if index already exists
+        from core.config import PERSISTENCE_DIR
+        if os.path.exists(PERSISTENCE_DIR):
+            return f"⚠️ Index already exists at: {PERSISTENCE_DIR}\n\nIf you want to recreate it, please delete the existing index directory first."
         
-        # Check if data directory exists and has files
-        if not os.path.exists(data_dir):
-            return f"❌ Data directory not found at: {data_dir}\nPlease create the data directory and add PDF documents."
+        # Check for data directory
+        from core.persistence import DATA_DOCUMENTS_DIR
+        if not os.path.exists(DATA_DOCUMENTS_DIR):
+            return f"❌ Data directory not found at: {DATA_DOCUMENTS_DIR}\nPlease create the data/documents directory and add PDF documents."
         
-        files = [f for f in os.listdir(data_dir) if f.endswith('.pdf')]
-        if not files:
-            return f"❌ No PDF files found in: {data_dir}\nPlease add PDF documents to process."
+        # Check for PDF files
+        import glob
+        pdf_files = glob.glob(os.path.join(DATA_DOCUMENTS_DIR, "*.pdf"))
+        if not pdf_files:
+            return f"❌ No PDF files found in: {DATA_DOCUMENTS_DIR}\nPlease add PDF documents to process."
         
-        # Set up embedding model
-        Settings.embed_model = HuggingFaceEmbedding(model_name=EMBED_MODEL_NAME)
+        # Check for required API keys
+        from dotenv import load_dotenv
+        load_dotenv()
         
-        # Load documents
-        reader = SimpleDirectoryReader(input_dir=data_dir)
-        documents = reader.load_data()
+        llama_api_key = os.getenv("LLAMA_CLOUD_API_KEY")
+        voyage_api_key = os.getenv("VOYAGE_API_KEY")
         
-        if not documents:
-            return f"❌ No documents could be loaded from: {data_dir}"
+        if not llama_api_key:
+            return "❌ LLAMA_CLOUD_API_KEY not found in environment variables."
+        if not voyage_api_key:
+            return "❌ VOYAGE_API_KEY not found in environment variables."
         
-        # Create index
-        index = VectorStoreIndex.from_documents(
-            documents,
-            show_progress=True
-        )
+        # Run the async create_index function
+        try:
+            asyncio.run(create_index_async())
+            return f"""✅ Index created successfully!
+- Processed {len(pdf_files)} PDF files
+- Saved to: {PERSISTENCE_DIR}
+- Images saved to: {DATA_DOCUMENTS_DIR.replace('documents', 'images')}
+
+You can now initialize the engine."""
+        except Exception as e:
+            return f"❌ Failed to create index: {str(e)}"
         
-        # Persist index
-        index.storage_context.persist(persist_dir=PERSISTENCE_DIR)
-        
-        return f"✅ Index created successfully!\n- Processed {len(documents)} documents\n- Saved to: {PERSISTENCE_DIR}\n\nYou can now initialize the engine."
-        
+    except ImportError as e:
+        return f"❌ Missing required dependencies: {str(e)}\nPlease install: pip install llama-cloud-services"
     except Exception as e:
         return f"❌ Failed to create index: {str(e)}"
 
@@ -183,36 +194,29 @@ def create_gradio_interface():
         border-radius: 8px;
         margin: 5px 0;
     }
-    .metrics-box {
-        background-color: #f5f5f5;
-        padding: 10px;
-        border-radius: 8px;
-        font-family: monospace;
-    }
     """
     
-    with gr.Blocks(css=css, title="RAG Tutor - Sustainable Design Assistant") as interface:
+    with gr.Blocks(css=css, title="PolyGlot Socratic Tutor") as interface:
         gr.Markdown("""
-        # Sustainable Design Tutor
+        # PolyGlot Socratic Tutor
         
-        An AI-powered tutor that helps you learn about sustainable design through Socratic dialogue.
+        An AI-powered tutor that helps you learn through Socratic dialogue.
         
         **Features:**
-        - Sources answers from sustainable design documents
+        - Sources answers from uploaded documents by teacher
         - Provides context-aware follow-up guidance
-        - Cites specific pages for first questions
-        - ⚡ Gives concise guidance for follow-ups
-        - Enhanced error handling and rate limiting
+        - Gives concise guidance for follow-ups
+                    
         """)
         
         with gr.Row():
             with gr.Column(scale=3):
-                # Chat interface
+                # Chat interface - Updated to use messages format
                 chatbot = gr.Chatbot(
                     label="Conversation",
                     height=400,
-                    avatar_images=("User", "Bot"),
-                    type="tuples"  # Explicitly set to avoid deprecation warning
+                    avatar_images=None,
+                    type="messages"  # Changed from "tuples" to "messages"
                 )
                 
                 with gr.Row():
@@ -226,7 +230,6 @@ def create_gradio_interface():
                 
                 with gr.Row():
                     reset_btn = gr.Button("Reset Conversation", variant="secondary", scale=1)
-                    metrics_btn = gr.Button("Show Metrics", variant="secondary", scale=1)
                     create_index_btn = gr.Button("Create Index", variant="secondary", scale=1)
             
             with gr.Column(scale=1):
@@ -243,12 +246,6 @@ def create_gradio_interface():
                 # Index management buttons
                 with gr.Row():
                     init_btn = gr.Button("Initialize Engine", variant="primary", scale=1)
-                    create_index_btn = gr.Button("Create Index", variant="secondary", scale=1)
-                
-                metrics_display = gr.Markdown(
-                    "Click 'Show Metrics' to see system statistics.",
-                    elem_classes=["metrics-box"]
-                )
                 
                 gr.Markdown("""
                 ### Setup Instructions
@@ -257,19 +254,7 @@ def create_gradio_interface():
                 3. **Start Chatting**: Ask questions about sustainable design
                 """)
                 
-                gr.Markdown("""
-                ### Tips
-                - Start with broad questions about sustainable design
-                - Follow up with "Can you tell me more?" or "What about...?"
-                - Ask for specific examples or applications
-                - Use "Reset" to start a fresh conversation
-                """)
-                
-                gr.Markdown("""
-                ### Note
-                This tutor is specialized in sustainable design topics. 
-                Off-topic questions will be redirected to relevant content.
-                """)
+            
         
         # Event handlers
         def submit_and_clear(user_input, history):
@@ -292,11 +277,6 @@ def create_gradio_interface():
         reset_btn.click(
             reset_conversation,
             outputs=[chatbot, user_input]
-        )
-        
-        metrics_btn.click(
-            get_system_metrics,
-            outputs=[metrics_display]
         )
         
         init_btn.click(
