@@ -10,8 +10,17 @@ class ReasoningTriplet(BaseModel):
 
 class AnswerEvaluation(BaseModel):
     """A data model for evaluating a student's response during tutoring."""
-    evaluation: Literal["new_question", "meta_question", "correct", "partially_correct", "incorrect", "error"] = Field(
-        description="The evaluation category: 'new_question', 'meta_question', 'correct', 'partially_correct', 'incorrect', or 'error'."
+    evaluation: Literal[
+        "new_question", 
+        "correct",
+        "partially_correct", 
+        "incorrect", 
+        "error",
+        "scaffold_focus_prompt",
+        "scaffold_analogy", 
+        "scaffold_multiple_choice"
+    ] = Field(
+        description="The evaluation category: 'new_question', 'meta_question', 'correct', 'partially_correct', 'incorrect', 'error', or scaffolding types."
     )
     feedback: str = Field(
         description="A brief message: hint, error notice, or feedback based on the evaluation."

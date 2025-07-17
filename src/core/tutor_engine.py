@@ -100,7 +100,7 @@ class TutorEngine:
         
         hybrid_retriever = QueryFusionRetriever(
             retrievers=[vector_retriever, bm25_retriever],
-            similirarity_top_k=5,
+            similarity_top_k=5,
             num_queries=1,
             mode="reciprocal_rerank"
         )
@@ -114,6 +114,8 @@ class TutorEngine:
         
         # ---  Pydantic Parsers for Structured Output ---
         self.eval_parser = PydanticOutputParser(AnswerEvaluation)
+        
+        self.stuck_count  = 0
 
     def _stage1_internal_monologue(self, user_question: str) -> tuple[ReasoningTriplet, list]:
         """
@@ -320,11 +322,14 @@ class TutorEngine:
             context_snippet = top_node.node.get_content()
             md = top_node.node.metadata
             page_label = md.get('page_label', None)
-            file_name = md.get('file_name', 'the document')
+            # only file_name 
+            file_path = md.get('file_name', 'the document')
+            file_name = os.path.basename(file_path) if file_path else 'the document'
+            
             if page_label:
-                source_info = f"page {page_label} of {file_name}"
+                source_info = f"at {page_label} of {file_name}"
             else:
-                source_info = f"the document ({file_name})"
+                source_info = f"{file_name}"
 
         if not answer_evaluation:
             answer_evaluation = AnswerEvaluation(
@@ -407,6 +412,9 @@ class TutorEngine:
         Pipeline for handling entirely new questions.
         """
         print("DEBUG: Executing pipeline: new_question")
+        
+        self.stuck_count = 0  # Reset stuck count for new questions
+        
         #  Stage 1: Expert Reasoning Model creates ReasoningTriplet
         internal_triplet, source_nodes = self._stage1_internal_monologue(user_question)
         
@@ -440,22 +448,62 @@ class TutorEngine:
         follow_up_type = self._stage0b_classify_follow_up_type()
 
         if follow_up_type == 'answer':
+            self.stuck_count = 0  # Reset meta question count on valid answer
             # Evaluate the student's answer
             print("DEBUG: Follow-up type is an answer. Evaluating.")
             evaluation = self._stage1b_check_answer(user_question)
             # Generate guidance based on the evaluation
             return self._stage2_socratic_dialogue(answer_evaluation=evaluation)
         else:  # follow_up_type == 'meta_question'
+            self.stuck_count += 1
             # Generate guidance without evaluation (e.g., give a hint)
             print("DEBUG: Follow-up type is a meta_question. Skipping evaluation.")
-            meta_evaluation = AnswerEvaluation(
-                evaluation="meta_question",
-                feedback="Student is asking for help or is confused."
-            )
-            return self._stage2_socratic_dialogue(answer_evaluation=meta_evaluation)
+            return self._provide_scaffolded_help()
+
+    def _provide_scaffolded_help(self) -> str:
+        """
+        Provide scaffolded help when the student is stuck.
+        
+        This method is called when the student asks a meta-question or
+        the tutor detects that the student is struggling.
+        """
+        if self.stuck_count == 1:
+            return self._generate_focused_hint()
+        elif self.stuck_count == 2:
+            return self._generate_analogy_hint()
+        else:  # self.stuck_count >= 3:
+            # After 3 consecutive meta-questions, we provide a multiple-choice assessment
+            return self._generate_multiple_choice_assessment()
+
+    def _generate_focused_hint(self) -> str:
+        """[Scaffold Level 1] Generates a focused hint on the next logical step."""
+        print("DEBUG: Scaffolding Level 1: Focus & Simplify")
+        scaffold_eval = AnswerEvaluation(
+            evaluation="scaffold_focus_prompt",
+            feedback="Student is stuck for the first time. Provide a focused prompt on the next logical step."
+        )
+        return self._stage2_socratic_dialogue(answer_evaluation=scaffold_eval)
+    def _generate_analogy_hint(self) -> str:
+        """[Scaffold Level 2] Generates an analogy hint to help the student connect concepts."""
+        print("DEBUG: Scaffolding Level 2: Analogy")
+        scaffold_eval = AnswerEvaluation(
+            evaluation="scaffold_analogy",
+            feedback="Student is stuck for the second time. Provide a helpful analogy to help them understand the core concept."
+        )
+        return self._stage2_socratic_dialogue(answer_evaluation=scaffold_eval)
+
+    def _generate_multiple_choice_assessment(self) -> str:
+        """[Scaffold Level 3] Generates a multiple-choice assessment to gauge understanding."""
+        print("DEBUG: Scaffolding Level 3: Multiple Choice Assessment")
+        scaffold_eval = AnswerEvaluation(
+            evaluation="scaffold_multiple_choice",
+            feedback="Student is stuck for the third time. Provide a multiple-choice question to guide them to the correct answer."
+        )
+        return self._stage2_socratic_dialogue(answer_evaluation=scaffold_eval)
 
     def reset(self):
         """Reset conversation memory and cached context."""
+        self.stuck_count = 0  # Reset stuck count
         self.memory.reset()
         self.current_topic_triplet = None
         self.current_topic_source_nodes = None
