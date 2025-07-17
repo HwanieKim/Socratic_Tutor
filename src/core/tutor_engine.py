@@ -44,7 +44,7 @@ class TutorEngine:
         Settings.llm = GoogleGenAI(
             model_name=config.GEMINI_REASONING_MODEL_NAME, 
             api_key=os.getenv("GOOGLE_API_KEY"),
-            temperature=0.1  # Lower temperature for more consistent responses
+            temperature=0.2  # Lower temperature for more consistent responses
         )
         Settings.embed_model = VoyageEmbedding(
             model_name="voyage-multimodal-3",
@@ -56,7 +56,7 @@ class TutorEngine:
         self.llm_tutor = GoogleGenAI(
             model_name=config.GEMINI_MODEL_NAME, 
             api_key=os.getenv("GOOGLE_API_KEY"),
-            temperature=0.3  # Slightly higher temperature for more natural conversation
+            temperature=0.4  # Slightly higher temperature for more natural conversation
         )
 
         # --- Context Caching ---
@@ -414,7 +414,7 @@ class TutorEngine:
         print("DEBUG: Executing pipeline: new_question")
         
         self.stuck_count = 0  # Reset stuck count for new questions
-        
+
         #  Stage 1: Expert Reasoning Model creates ReasoningTriplet
         internal_triplet, source_nodes = self._stage1_internal_monologue(user_question)
         
