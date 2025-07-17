@@ -23,28 +23,28 @@ from core.production_enhancements import ProductionTutorEngine
 engine = None
 prod_engine = None
 
+def check_index_exists():
+    """Check if index exists without initializing engine"""
+    try:
+        from core.config import PERSISTENCE_DIR
+        return os.path.exists(PERSISTENCE_DIR) and len(os.listdir(PERSISTENCE_DIR)) > 0
+    except:
+        return False
+    
 def initialize_engine():
     """Initialize the tutor engine"""
     global engine, prod_engine
+
+    if engine is not None and prod_engine is not None:
+        return "✅ Engine already initialized and ready!"
+    
+    # Check if index exists first
+    if not check_index_exists():
+        return "⚠️ No index found. Please create an index first using the 'Create Index' button below."
+    
     try:
         # Add debug information
-        from core.config import PERSISTENCE_DIR, PROJECT_ROOT
-        debug_info = f"Looking for index at: {PERSISTENCE_DIR}"
-        print(f"DEBUG: {debug_info}")
-        
-        # Check if index exists
-        if not os.path.exists(PERSISTENCE_DIR):
-            # Try to create index automatically
-            data_dir = os.path.join(PROJECT_ROOT, "data")
-            if os.path.exists(data_dir) and os.listdir(data_dir):
-                return f"❌ Index not found at: {PERSISTENCE_DIR}\n\n" + \
-                       f"🔧 To create the index, run this command from the project root:\n" + \
-                       f"python -c \"from src.core.persistence import *\"\n\n" + \
-                       f"Or create the index manually by processing documents in: {data_dir}"
-            else:
-                return f"❌ Index not found at: {PERSISTENCE_DIR}\n" + \
-                       f"❌ Data directory not found or empty at: {data_dir}\n\n" + \
-                       f"Please add PDF documents to the data/ directory first."
+        from core.config import PERSISTENCE_DIR
         
         # List files in index directory
         index_files = os.listdir(PERSISTENCE_DIR)
@@ -57,7 +57,7 @@ def initialize_engine():
         if missing_files:
             return f"❌ Index directory exists but missing required files.\n" + \
                    f"Found: {index_files}\n" + \
-                   f"Please recreate the index."
+                   f"Please recreate the index using 'Create Index' button."
         
         engine = TutorEngine()
         prod_engine = ProductionTutorEngine(engine)
@@ -73,7 +73,10 @@ def initialize_engine():
 def get_response(user_input, history, user_id="default"):
     """Get response from the tutor engine"""
     if not prod_engine:
-        return history + [{"role": "assistant", "content": "Please wait while the engine initializes..."}], ""
+        error_msg = "🚫 Engine not initialized. Please initialize the engine first."
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": error_msg})
+        return history, ""
     
     if not user_input.strip():
         return history, ""
@@ -84,14 +87,14 @@ def get_response(user_input, history, user_id="default"):
         
         # Add to conversation history using messages format
         history.append({"role": "user", "content": user_input})
-        history.append({"role": "assistant", "content": response})  # Changed from "tutor" to "assistant"
+        history.append({"role": "assistant", "content": response})
         
         return history, ""
         
     except Exception as e:
         error_response = f"I apologize, but I encountered an error: {str(e)}. Please try again."
         history.append({"role": "user", "content": user_input})
-        history.append({"role": "assistant", "content": error_response})  # Changed from "tutor" to "assistant"
+        history.append({"role": "assistant", "content": error_response})
         return history, ""
 
 def reset_conversation():
@@ -117,27 +120,29 @@ def get_system_metrics():
     except Exception as e:
         return f"Error getting metrics: {str(e)}"
 
-def create_index():
-    """Create the vector index from documents"""
+def create_index_with_progress():
+    """Create the vector index from documents with progress updates"""
     try:
-        from core.persistence import create_index as create_index_async
-        import asyncio
-        
         # Check if index already exists
         from core.config import PERSISTENCE_DIR
-        if os.path.exists(PERSISTENCE_DIR):
-            return f"⚠️ Index already exists at: {PERSISTENCE_DIR}\n\nIf you want to recreate it, please delete the existing index directory first."
+        if os.path.exists(PERSISTENCE_DIR) and os.listdir(PERSISTENCE_DIR):
+            return f"⚠️ Index already exists at: {PERSISTENCE_DIR}\n\nTo recreate, please delete the existing index directory first."
         
         # Check for data directory
-        from core.persistence import DATA_DOCUMENTS_DIR
+        try:
+            from core.persistence import DATA_DOCUMENTS_DIR
+        except ImportError:
+            # Fallback to default path if import fails
+            DATA_DOCUMENTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "documents")
+        
         if not os.path.exists(DATA_DOCUMENTS_DIR):
-            return f"❌ Data directory not found at: {DATA_DOCUMENTS_DIR}\nPlease create the data/documents directory and add PDF documents."
+            return f"❌ Data directory not found at: {DATA_DOCUMENTS_DIR}\n\nPlease create the data/documents directory and add PDF documents."
         
         # Check for PDF files
         import glob
         pdf_files = glob.glob(os.path.join(DATA_DOCUMENTS_DIR, "*.pdf"))
         if not pdf_files:
-            return f"❌ No PDF files found in: {DATA_DOCUMENTS_DIR}\nPlease add PDF documents to process."
+            return f"❌ No PDF files found in: {DATA_DOCUMENTS_DIR}\n\nPlease add PDF documents to process."
         
         # Check for required API keys
         from dotenv import load_dotenv
@@ -146,27 +151,48 @@ def create_index():
         llama_api_key = os.getenv("LLAMA_CLOUD_API_KEY")
         voyage_api_key = os.getenv("VOYAGE_API_KEY")
         
+        missing_keys = []
         if not llama_api_key:
-            return "❌ LLAMA_CLOUD_API_KEY not found in environment variables."
+            missing_keys.append("LLAMA_CLOUD_API_KEY")
         if not voyage_api_key:
-            return "❌ VOYAGE_API_KEY not found in environment variables."
+            missing_keys.append("VOYAGE_API_KEY")
         
-        # Run the async create_index function
+        if missing_keys:
+            return f"❌ Missing environment variables: {', '.join(missing_keys)}\n\nPlease set these in your .env file."
+        
+        # Import and run index creation
+        yield f"🔄 Starting index creation...\nFound {len(pdf_files)} PDF files to process."
+        
         try:
+            from core.persistence import create_index as create_index_async
+            import asyncio
+            
+            yield "🔄 Processing documents and creating embeddings...\nThis may take several minutes."
+            
+            # Run the async create_index function
             asyncio.run(create_index_async())
-            return f"""✅ Index created successfully!
+            
+            yield f"""✅ Index created successfully!
 - Processed {len(pdf_files)} PDF files
 - Saved to: {PERSISTENCE_DIR}
-- Images saved to: {DATA_DOCUMENTS_DIR.replace('documents', 'images')}
+- Ready for engine initialization
 
-You can now initialize the engine."""
+You can now click 'Initialize Engine' to start the tutor."""
+            
         except Exception as e:
-            return f"❌ Failed to create index: {str(e)}"
+            yield f"❌ Failed to create index: {str(e)}\n\nPlease check your API keys and try again."
         
     except ImportError as e:
-        return f"❌ Missing required dependencies: {str(e)}\nPlease install: pip install llama-cloud-services"
+        yield f"❌ Missing required dependencies: {str(e)}\n\nPlease install: pip install llama-cloud-services"
     except Exception as e:
-        return f"❌ Failed to create index: {str(e)}"
+        yield f"❌ Failed to create index: {str(e)}"
+
+def get_initial_status():
+    """Get initial status message"""
+    if check_index_exists():
+        return "📋 Index found! Click 'Initialize Engine' to start the tutor."
+    else:
+        return "📋 Ready to start! Click 'Create Index' first, then 'Initialize Engine'."
 
 def create_gradio_interface():
     """Create the Gradio interface"""
@@ -216,7 +242,7 @@ def create_gradio_interface():
                     label="Conversation",
                     height=400,
                     avatar_images=None,
-                    type="messages"  # Changed from "tuples" to "messages"
+                    type="messages"
                 )
                 
                 with gr.Row():
@@ -230,31 +256,31 @@ def create_gradio_interface():
                 
                 with gr.Row():
                     reset_btn = gr.Button("Reset Conversation", variant="secondary", scale=1)
-                    create_index_btn = gr.Button("Create Index", variant="secondary", scale=1)
             
             with gr.Column(scale=1):
                 # System information and controls
                 gr.Markdown("### System Status")
                 
                 init_status = gr.Textbox(
-                    label="Initialization Status",
-                    value="Initializing...",
+                    label="Status",
+                    value=get_initial_status(),
                     interactive=False,
                     lines=4
                 )
                 
-                # Index management buttons
-                with gr.Row():
-                    init_btn = gr.Button("Initialize Engine", variant="primary", scale=1)
+                # Setup buttons
+                gr.Markdown("### Setup Steps")
+                create_index_btn = gr.Button("1. Create Index", variant="secondary", scale=1)
+                init_btn = gr.Button("2. Initialize Engine", variant="primary", scale=1)
                 
                 gr.Markdown("""
-                ### Setup Instructions
-                1. **Create Index**: If index is missing, click "Create Index" first
-                2. **Initialize Engine**: Click to start the tutor system
-                3. **Start Chatting**: Ask questions about sustainable design
-                """)
+                ### Instructions
+                1. **First Time Setup**: Click "Create Index" to process your PDF documents
+                2. **Initialize**: Click "Initialize Engine" to start the tutor
+                3. **Chat**: Ask questions about your documents
                 
-            
+                **Note**: Index creation may take several minutes depending on document size.
+                """)
         
         # Event handlers
         def submit_and_clear(user_input, history):
@@ -285,13 +311,7 @@ def create_gradio_interface():
         )
         
         create_index_btn.click(
-            create_index,
-            outputs=[init_status]
-        )
-        
-        # Initialize engine on load
-        interface.load(
-            initialize_engine,
+            create_index_with_progress,
             outputs=[init_status]
         )
     
@@ -306,6 +326,7 @@ def main():
     print("  ✅ Topic relevance filtering")
     print("  ✅ Conversation metrics")
     print("  ✅ Enhanced logging")
+    print("  ✅ Lazy index creation")
     
     # Create and launch interface
     interface = create_gradio_interface()
@@ -313,7 +334,7 @@ def main():
     # Launch with appropriate settings
     interface.launch(
         server_name="127.0.0.1",
-        server_port=7862,  # Use different port to avoid conflict
+        server_port=7862,
         show_error=True,
         share=False,
         inbrowser=True
