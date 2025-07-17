@@ -1,0 +1,20 @@
+# Core dependencies
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# LlamaIndex core and components
+llama-index>=0.10.0
+llama-index-core>=0.10.0
+llama-index-llms-google-genai>=0.1.0
+llama-index-embeddings-voyageai>=0.1.0
+llama-index-retrievers-bm25>=0.1.0
+
+# LlamaCloud for document parsing
+llama-cloud>=0.0.6
+
+# UI framework
+gradio>=4.0.0
+
+# Additional dependencies
+asyncio-run>=0.1.0
+glob2>=0.7
