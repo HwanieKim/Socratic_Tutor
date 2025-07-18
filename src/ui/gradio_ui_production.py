@@ -336,7 +336,7 @@ def main():
         server_name="127.0.0.1",
         server_port=7862,
         show_error=True,
-        share=False,
+        share=True,
         inbrowser=True
     )
 
