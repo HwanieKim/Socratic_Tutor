@@ -122,6 +122,8 @@ def get_system_metrics():
 
 def create_index_with_progress():
     """Create the vector index from documents with progress updates"""
+
+ 
     try:
         # Check if index already exists
         from core.config import PERSISTENCE_DIR
@@ -333,11 +335,11 @@ def main():
     
     # Launch with appropriate settings
     interface.launch(
-        server_name="0.0.0.0",
-        server_port=7862,
+        server_name="127.0.0.1",
+        server_port=int(os.environ.get("PORT", 7862)),
         show_error=True,
         share=False,
-        inbrowser=True
+        inbrowser=False
     )
 
 if __name__ == "__main__":

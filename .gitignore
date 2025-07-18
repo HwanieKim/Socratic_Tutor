@@ -161,10 +161,7 @@ cython_debug/
 # VS Code
 .vscode/
 
-# Project specific
-# Vector store index files
-persistent_index/
-*.json
+
 
 # Data files (if sensitive)
 # data/
