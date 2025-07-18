@@ -9,12 +9,10 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from sqlalchemy import true
 load_dotenv()
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PERSISTENCE_DIR = os.path.join(PROJECT_ROOT, "persistent_index")
-DATA_DOCUMENTS_DIR = os.path.join(PROJECT_ROOT, "data", "documents")
-DATA_IMAGES_DIR = os.path.join(PROJECT_ROOT, "data", "images")
-
-
+# Ensure the necessary directories exist
+PERSISTENCE_DIR = "./persistent_index"
+DATA_DOCUMENTS_DIR = "./data/documents"
+DATA_IMAGES_DIR = "./data/images"
 
 async def create_index():
     """Creates and persists the vector store index."""
