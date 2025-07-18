@@ -333,10 +333,10 @@ def main():
     
     # Launch with appropriate settings
     interface.launch(
-        server_name="127.0.0.1",
+        server_name="0.0.0.0",
         server_port=7862,
         show_error=True,
-        share=True,
+        share=False,
         inbrowser=True
     )
 
