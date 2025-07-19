@@ -161,6 +161,9 @@ cython_debug/
 # VS Code
 .vscode/
 
+#index
+persistent_index/
+data/images/
 
 
 # Data files (if sensitive)
