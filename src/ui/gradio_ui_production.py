@@ -333,31 +333,16 @@ def main():
     # Create and launch interface
     interface = create_gradio_interface()
     
-    # Railway 환경 감지
-    is_railway = os.environ.get("RAILWAY_ENVIRONMENT") is not None
-    port = int(os.environ.get("PORT", 7862))
-    
-    if is_railway:
-        print(f"🚀 Railway environment detected. Starting on 0.0.0.0:{port}")
-        # Railway 배포용 설정
-        interface.launch(
-            server_name="0.0.0.0",  # 모든 IP에서 접근 가능
-            server_port=port,
-            show_error=True,
-            share=False,  # Railway에서는 False
-            inbrowser=False,  # 서버 환경에서는 False
-            quiet=False
-        )
-    else:
-        print(f"💻 Local environment detected. Starting on 127.0.0.1:{port}")
+    port = 7860  # Default Gradio port
+    print(f"💻 Local environment detected. Starting on 127.0.0.1:{port}")
         # 로컬 개발용 설정
-        interface.launch(
-            server_name="127.0.0.1",
-            server_port=port,
-            show_error=True,
-            share=True,
-            inbrowser=True,
-            quiet=False
+    interface.launch(
+        server_name="127.0.0.1",
+        server_port=port,
+        show_error=True,
+        share=True,
+        inbrowser=True,
+        quiet=False
         )
 
 if __name__ == "__main__":

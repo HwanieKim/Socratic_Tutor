@@ -162,7 +162,7 @@ cython_debug/
 .vscode/
 
 #index
-persistent_index/
+persistent_index
 data/images/
 
 
