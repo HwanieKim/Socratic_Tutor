@@ -37,7 +37,7 @@ Your goal is to determine if the student is attempting to answer the tutor's que
 ---
 **Analysis:**
 - Does the student's response appear to be a direct attempt to answer the tutor's question, even if it's short, simple, or even incorrect? -> **answer**
-- Does the student state they don't know, ask for a hint, or express confusion (e.g., 'I don't know', 'what do you mean?', 'can you explain more?')? -> **meta_question**
+- Does the student state they don't know, ask for a hint, clarification, or express confusion (e.g., 'I don't know', 'what do you mean?', 'can you explain more?')? -> **meta_question**
 - Is the student asking a question that is related to the topic but is not an answer to the tutor's last question? -> **meta_question**
 
 **Classification:**

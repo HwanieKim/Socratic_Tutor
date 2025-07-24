@@ -340,8 +340,8 @@ def main():
         server_name="127.0.0.1",
         server_port=port,
         show_error=True,
-        share=True,
-        inbrowser=True,
+        share=False,
+        inbrowser=False,
         quiet=False
         )
 
