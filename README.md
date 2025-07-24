@@ -11,14 +11,20 @@ An AI-powered tutoring system that uses Socratic dialogue methodology to help st
 -   **Production-Ready**: Rate limiting, error handling, and conversation metrics
 -   **Real-time Web UI**: Clean Gradio interface with lazy index creation
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture (Modular Design)
 
 ### Core Components
 
-1. **TutorEngine** (`src/core/tutor_engine.py`): Main orchestration engine
-2. **ProductionTutorEngine** (`src/core/production_enhancements.py`): Production wrapper with safety features
-3. **Multi-Modal RAG**: Hybrid retrieval combining vector search and document processing
-4. **Scaffolding System**: Progressive help mechanism
+The system follows a **modular architecture** where each component has a specific responsibility:
+
+1. **TutorEngine** (`src/core/tutor_engine.py`): Main orchestrator following SOAR pattern
+2. **IntentClassifier** (`src/core/intent_classifier.py`): Stage 0 & 0b intent classification
+3. **RAGRetriever** (`src/core/rag_retriever.py`): Stage 1 hybrid retrieval and expert reasoning
+4. **AnswerEvaluator** (`src/core/answer_evaluator.py`): Stage 1b student answer evaluation
+5. **DialogueGenerator** (`src/core/dialogue_generator.py`): Stage 2 Socratic dialogue generation
+6. **ScaffoldingSystem** (`src/core/scaffolding_system.py`): Progressive support mechanism
+7. **MemoryManager** (`src/core/memory_manager.py`): Conversation memory and context caching
+8. **ProductionTutorEngine** (`src/core/production_enhancements.py`): Production wrapper with safety features
 
 ### Pipeline Stages
 
@@ -104,10 +110,28 @@ example_rag/
 ├── src/
 │   ├── core/
 │   │   ├── __init__.py              # Package initialization
-│   │   ├── tutor_engine.py          # Main tutoring engine
-│   │   ├── production_enhancements.py # Production features
-│   │   ├── models.py                # Pydantic data models
-│   │   ├── prompts_template.py      # LLM prompt templates
+│   │   ├── tutor_engine.py          # 🎯 Main orchestrator (SOAR pattern)
+│   │   ├── intent_classifier.py     # 🧠 Stage 0 & 0b logic
+│   │   ├── rag_retriever.py         # 🔍 Stage 1 RAG and reasoning
+│   │   ├── answer_evaluator.py      # 📊 Stage 1b evaluation logic
+│   │   ├── dialogue_generator.py    # 💬 Stage 2 Socratic dialogue
+│   │   ├── scaffolding_system.py    # 🏗️ Progressive support system
+│   │   ├── memory_manager.py        # 🧠 Memory and context management
+│   │   ├── production_enhancements.py # 🛡️ Production features
+│   │   ├── models.py                # 📋 Pydantic data models
+│   │   ├── prompts_template.py      # 📝 LLM prompt templates
+│   │   ├── config.py                # ⚙️ Configuration settings
+│   │   └── persistence.py           # 💾 Index creation and storage
+│   └── ui/
+│       ├── gradio_ui_production.py  # 🌐 Production web interface
+│       └── gradio_ui_fast.py        # ⚡ Fast development interface
+├── data/
+│   ├── documents/                   # 📚 PDF documents for processing
+│   └── images/                      # 🖼️ Extracted images from PDFs
+├── persistent_index/                # 🗂️ Vector index storage
+├── requirements.txt                 # 📦 Python dependencies
+├── test_integration.py              # 🧪 Module integration tests
+└── README.md                        # 📖 Documentation
 │   │   ├── persistence.py           # Index creation and management
 │   │   └── config.py                # System configuration
 │   └── ui/

@@ -48,6 +48,15 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+
+# PolyGlot Socratic Tutor specific
+persistent_index/
+data/images/
+*.log
+.gradio/
+
+# Environment variables
+.env
 .pytest_cache/
 cover/
 
@@ -160,11 +169,6 @@ cython_debug/
 
 # VS Code
 .vscode/
-
-#index
-persistent_index
-data/images/
-
 
 # Data files (if sensitive)
 # data/
