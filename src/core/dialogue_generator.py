@@ -130,12 +130,16 @@ class DialogueGenerator:
                 
                 # Extract source information from metadata
                 metadata = top_node.node.metadata
-                file_name = metadata.get('file_name', 'the document')
+                file_path = metadata.get('file_name', 'the document')
                 page_label = metadata.get('page_label', '')
                 
-                # Format source info
+                # Extract only filename without path
+                import os
+                file_name = os.path.basename(file_path) if file_path else 'the document'
+                
+                # Format source info with filename only
                 if page_label:
-                    source_info = f"at {page_label} of {file_name}"
+                    source_info = f"page {page_label} of {file_name}"
                 else:
                     source_info = f"in {file_name}"
                     

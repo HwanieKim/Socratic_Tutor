@@ -4,9 +4,13 @@ TutorEngine - Main Orchestrator (Refactored)
 
 Simplified orchestrator that coordinates all the specialized modules.
 Follows SOAR pattern: State, Operator, And, Result
+Supports Railway deployment with database and session management.
 """
 
 import os
+import uuid
+import shutil
+from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 from llama_index.core import Settings, StorageContext, load_index_from_storage
@@ -21,6 +25,7 @@ from .answer_evaluator import AnswerEvaluator
 from .dialogue_generator import DialogueGenerator
 from .scaffolding_system import ScaffoldingSystem
 from .memory_manager import MemoryManager
+from .database_manager import DatabaseManager
 
 
 class TutorEngine:
@@ -29,34 +34,75 @@ class TutorEngine:
     
     Coordinates specialized modules to provide intelligent tutoring
     following the SOAR pattern (State, Operator, And, Result)
+    Supports multi-user sessions with database integration.
     """
     
-    def __init__(self):
-        """Initialize the tutor engine and all component modules"""
+    def __init__(self, session_id: str = None):
+        """Initialize the tutor engine and all component modules
+        
+        Args:
+            session_id: Unique session identifier. If None, generates a new one.
+        """
         load_dotenv()
         
-        # Check if index exists
-        if not os.path.exists(config.PERSISTENCE_DIR):
-            raise FileNotFoundError(
-                f"Index not found at {config.PERSISTENCE_DIR}. "
-                "Please create the index first using the create_index function."
-            )
+        # Session management
+        self.session_id = session_id or str(uuid.uuid4())
+        self.db_manager = DatabaseManager()
+        
+        # Create or get user
+        self.user = self.db_manager.create_or_get_user(self.session_id)
+        
+        # Check for existing user index first
+        self._try_load_user_index()
+        
+        # If no user index, try to load default index
+        if not hasattr(self, 'index') or self.index is None:
+            self._try_load_default_index()
         
         # Configure global LlamaIndex settings
         self._configure_global_settings()
         
-        # Load the vector index
-        self.index = self._load_index()
-        
-        # Initialize specialized modules
+        # Initialize specialized modules only if we have an index
+        if hasattr(self, 'index') and self.index is not None:
+            self._initialize_modules()
+        else:
+            print("⚠️ No index available. Upload documents and create index to start tutoring.")
+    
+    def _try_load_user_index(self):
+        """Try to load user-specific index"""
+        try:
+            active_index = self.db_manager.get_active_index(self.session_id)
+            if active_index and os.path.exists(active_index['index_path']):
+                self.index = self._load_index_from_path(active_index['index_path'])
+                print(f"✅ Loaded user index with {active_index['document_count']} documents")
+            else:
+                self.index = None
+        except Exception as e:
+            print(f"Could not load user index: {e}")
+            self.index = None
+    
+    def _try_load_default_index(self):
+        """Try to load default index as fallback"""
+        try:
+            if os.path.exists(config.PERSISTENCE_DIR):
+                self.index = self._load_index_from_path(config.PERSISTENCE_DIR)
+                print("✅ Loaded default index")
+            else:
+                self.index = None
+                print("ℹ️ No default index found")
+        except Exception as e:
+            print(f"Could not load default index: {e}")
+            self.index = None
+    
+    def _initialize_modules(self):
+        """Initialize specialized modules"""
         self.memory_manager = MemoryManager(token_limit=3000)
         self.intent_classifier = IntentClassifier()
         self.rag_retriever = RAGRetriever(self.index)
         self.answer_evaluator = AnswerEvaluator()
         self.dialogue_generator = DialogueGenerator()
         self.scaffolding_system = ScaffoldingSystem()
-        
-        print("✅ TutorEngine initialized successfully with modular architecture")
+        print("✅ TutorEngine modules initialized successfully")
     
     def _configure_global_settings(self):
         """Configure global LlamaIndex settings"""
@@ -79,10 +125,10 @@ class TutorEngine:
             print(f"Error configuring global settings: {e}")
             raise
     
-    def _load_index(self):
-        """Load the vector index from storage"""
+    def _load_index_from_path(self, index_path: str):
+        """Load index from specific path"""
         try:
-            storage_context = StorageContext.from_defaults(persist_dir=config.PERSISTENCE_DIR)
+            storage_context = StorageContext.from_defaults(persist_dir=index_path)
             index = load_index_from_storage(storage_context)
             return index
             
@@ -343,6 +389,162 @@ class TutorEngine:
         except Exception as e:
             print(f"Error getting memory stats: {e}")
             return {"error": "Unable to get memory statistics"}
+    
+    # Railway deployment methods for file upload and index management
+    
+    def upload_documents(self, uploaded_files) -> str:
+        """Upload documents to Railway Volume and save metadata to database
+        
+        Args:
+            uploaded_files: List of uploaded file objects from Gradio
+            
+        Returns:
+            str: Upload status message
+        """
+        try:
+            if not uploaded_files:
+                return "❌ No files provided"
+            
+            saved_files = []
+            user_upload_dir = os.path.join(config.USER_UPLOADS_DIR, self.session_id)
+            os.makedirs(user_upload_dir, exist_ok=True)
+            
+            for file in uploaded_files:
+                if file is None:
+                    continue
+                
+                # Calculate file hash for deduplication
+                file_hash = self.db_manager.calculate_file_hash(file.name)
+                original_filename = os.path.basename(file.name)
+                
+                # Create unique filename
+                file_extension = os.path.splitext(original_filename)[1]
+                unique_filename = f"{file_hash}_{original_filename}"
+                save_path = os.path.join(user_upload_dir, unique_filename)
+                
+                # Copy file to permanent location
+                shutil.copy2(file.name, save_path)
+                
+                # Save metadata to database
+                file_info = {
+                    'original_filename': original_filename,
+                    'display_name': original_filename,
+                    'file_hash': file_hash,
+                    'file_path': save_path,
+                    'file_size': os.path.getsize(save_path)
+                }
+                
+                doc_id = self.db_manager.save_uploaded_document(self.session_id, file_info)
+                if doc_id > 0:
+                    saved_files.append(original_filename)
+            
+            if saved_files:
+                return f"✅ Successfully uploaded {len(saved_files)} documents:\n" + "\n".join([f"• {name}" for name in saved_files])
+            else:
+                return "❌ No documents were saved successfully"
+                
+        except Exception as e:
+            return f"❌ Upload failed: {str(e)}"
+    
+    def create_user_index(self) -> str:
+        """Create user-specific index from uploaded documents
+        
+        Returns:
+            str: Index creation status message
+        """
+        try:
+            # Get uploaded documents from database
+            documents = self.db_manager.get_user_documents(self.session_id)
+            uploaded_docs = [doc for doc in documents if doc['status'] == 'uploaded']
+            
+            if not uploaded_docs:
+                return "❌ No uploaded documents found. Please upload PDF files first."
+            
+            # Prepare file paths for index creation
+            file_paths = [doc['file_path'] for doc in uploaded_docs]
+            
+            # Create user-specific index directory
+            user_index_dir = os.path.join(config.USER_INDEXES_DIR, self.session_id)
+            
+            # Import and run index creation
+            from .persistence import create_index_from_files
+            import asyncio
+            
+            print(f"Creating index from {len(file_paths)} documents...")
+            asyncio.run(create_index_from_files(file_paths, user_index_dir))
+            
+            # Update database to mark documents as indexed
+            self.db_manager.mark_documents_indexed(self.session_id, user_index_dir)
+            
+            # Reload the engine with new index
+            self.index = self._load_index_from_path(user_index_dir)
+            self._initialize_modules()
+            
+            return f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
+            
+        except Exception as e:
+            return f"❌ Index creation failed: {str(e)}"
+    
+    def get_user_documents(self) -> List[Dict]:
+        """Get list of user's uploaded documents
+        
+        Returns:
+            List[Dict]: List of document metadata
+        """
+        try:
+            return self.db_manager.get_user_documents(self.session_id)
+        except Exception as e:
+            print(f"Error getting user documents: {e}")
+            return []
+    
+    def get_session_info(self) -> Dict:
+        """Get session information including upload/index status
+        
+        Returns:
+            Dict: Session information
+        """
+        try:
+            documents = self.get_user_documents()
+            active_index = self.db_manager.get_active_index(self.session_id)
+            
+            return {
+                'session_id': self.session_id,
+                'user_created': self.user.get('created_at'),
+                'documents_count': len(documents),
+                'indexed_documents': len([d for d in documents if d['indexed']]),
+                'has_active_index': active_index is not None,
+                'engine_ready': hasattr(self, 'index') and self.index is not None,
+                'documents': documents
+            }
+        except Exception as e:
+            print(f"Error getting session info: {e}")
+            return {'error': str(e)}
+    
+    def save_conversation(self, user_message: str, tutor_response: str, context_used: str = ""):
+        """Save conversation to database for history tracking
+        
+        Args:
+            user_message: User's message
+            tutor_response: Tutor's response
+            context_used: Context information used in response
+        """
+        try:
+            self.db_manager.save_conversation(
+                self.session_id, 
+                user_message, 
+                tutor_response, 
+                context_used
+            )
+        except Exception as e:
+            print(f"Failed to save conversation: {e}")
+    
+    def is_ready_for_tutoring(self) -> bool:
+        """Check if engine is ready for tutoring
+        
+        Returns:
+            bool: True if engine has index and modules initialized
+        """
+        return hasattr(self, 'index') and self.index is not None and hasattr(self, 'rag_retriever')
 
 
 # Legacy method aliases for backward compatibility

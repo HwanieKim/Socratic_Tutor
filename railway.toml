@@ -1,0 +1,19 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+[env]
+# Railway will automatically provide DATABASE_URL for PostgreSQL
+# Add your API keys in Railway dashboard:
+# LLAMA_CLOUD_API_KEY=your_llama_key
+# VOYAGE_API_KEY=your_voyage_key  
+# GOOGLE_API_KEY=your_google_key
+# RAILWAY_VOLUME_MOUNT_PATH=/app/data
+
+[experimental]
+# Enable Railway Volumes for persistent file storage
+volumes = ["/app/data"]
