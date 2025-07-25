@@ -270,7 +270,8 @@ def create_gradio_interface():
                 chatbot = gr.Chatbot(
                     label="Conversation",
                     height=500,
-                    show_label=True
+                    show_label=True,
+                    type= "messages"  # Use messages type for better chat experience
                 )
                 
                 with gr.Row():
@@ -370,7 +371,7 @@ def main():
         return Response(status_code=200, content="OK")
 
     # Mount the Gradio app
-    app = gr.mount_gradio_app(app, interface, path="/")
+    app = gr.mount_gradio_app(app, interface, path="/app")
     
     # Launch settings - Railway 최적화
     port = int(os.getenv("PORT", 7860))
