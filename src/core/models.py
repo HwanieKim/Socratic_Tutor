@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, Optional
 
 # Using standard PascalCase naming and fixed typos
 class ReasoningTriplet(BaseModel):
@@ -9,19 +9,40 @@ class ReasoningTriplet(BaseModel):
     answer: str = Field(description="The final, concise answer to the question, derived from the reasoning chain.")
 
 class AnswerEvaluation(BaseModel):
-    """A data model for evaluating a student's response during tutoring."""
+    """Pure evaluation of student's answer quality (separated from scaffolding)"""
     evaluation: Literal[
-        "new_question", 
         "correct",
         "partially_correct", 
         "incorrect", 
-        "error",
-        "scaffold_focus_prompt",
-        "scaffold_analogy", 
-        "scaffold_multiple_choice"
+        "no_answer",
+        "error"
     ] = Field(
-        description="The evaluation category: 'new_question', 'meta_question', 'correct', 'partially_correct', 'incorrect', 'error', or scaffolding types."
+        description="The evaluation category for answer quality assessment."
     )
     feedback: str = Field(
-        description="A brief message: hint, error notice, or feedback based on the evaluation."
+        description="Specific feedback about what the student got right or wrong."
+    )
+    reasoning_analysis: Optional[str] = Field(
+        default=None,
+        description="Analysis of which parts of the expert reasoning the student demonstrated understanding of."
+    )
+
+class ScaffoldingDecision(BaseModel):
+    """Separate scaffolding strategy decision"""
+    scaffold_type: Literal[
+        "focus_prompt", 
+        "analogy", 
+        "multiple_choice",
+        "direct_hint"
+    ] = Field(
+        description="The type of scaffolding to apply based on student's stuck level."
+    )
+    stuck_level: int = Field(
+        description="How many times the student has been stuck (1-4+)."
+    )
+    reason: str = Field(
+        description="Pedagogical reason for choosing this scaffolding approach."
+    )
+    content: str = Field(
+        description="The actual scaffolding content/message to deliver."
     )

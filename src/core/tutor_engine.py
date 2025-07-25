@@ -246,8 +246,24 @@ class TutorEngine:
             # Reset stuck count since student provided an answer
             self.memory_manager.reset_stuck_count()
             
-            # Stage 1b: Evaluate student's answer
-            evaluation = self.answer_evaluator.evaluate_student_answer(student_answer, triplet)
+            # Get tutor's last message and conversation context for evaluation
+            recent_messages = self.memory_manager.get_conversation_history(last_n=6)
+            tutor_last_message = ""
+            conversation_context = self.memory_manager.format_conversation_context(last_n=6)
+            
+            # Find the tutor's last message
+            for msg in reversed(recent_messages[:-1]):  # Exclude the current student message
+                if msg.role.value == "assistant":  # Tutor's message
+                    tutor_last_message = msg.content
+                    break
+            
+            # Stage 1b: Evaluate student's answer with full context
+            evaluation = self.answer_evaluator.evaluate_student_answer(
+                student_answer, 
+                triplet,
+                tutor_last_message,
+                conversation_context
+            )
             print(f"DEBUG: Answer evaluation (Stage 1b): {evaluation.evaluation}")
             
             # Stage 2: Generate response based on evaluation
@@ -282,9 +298,9 @@ class TutorEngine:
             stuck_count = self.memory_manager.increment_stuck_count()
             print(f"DEBUG: Scaffolding Level {stuck_count}: Student stuck count incremented")
             
-            # Get scaffolded help based on stuck count
-            scaffold_evaluation = self.scaffolding_system.provide_scaffolded_help(stuck_count, triplet)
-            print(f"DEBUG: Scaffolding evaluation type: {scaffold_evaluation.evaluation}")
+            # Get scaffolding decision based on stuck count
+            scaffolding_decision = self.scaffolding_system.decide_scaffolding(stuck_count, triplet)
+            print(f"DEBUG: Scaffolding decision type: {scaffolding_decision.scaffold_type} (level {scaffolding_decision.stuck_level})")
             
             # Use dialogue generator to create the final response with scaffolding
             source_nodes = self.memory_manager.current_topic_source_nodes or []
@@ -292,7 +308,7 @@ class TutorEngine:
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
-                answer_evaluation=scaffold_evaluation
+                scaffolding_decision=scaffolding_decision
             )
             
             return response

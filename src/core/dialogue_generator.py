@@ -13,7 +13,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.core.llms import ChatMessage, MessageRole
 
 from . import config
-from .models import AnswerEvaluation, ReasoningTriplet
+from .models import AnswerEvaluation, ReasoningTriplet, ScaffoldingDecision
 from .prompts_template import TUTOR_TEMPLATE
 
 
@@ -32,7 +32,8 @@ class DialogueGenerator:
         triplet: ReasoningTriplet, 
         source_nodes: list, 
         memory,
-        answer_evaluation: AnswerEvaluation = None
+        answer_evaluation: AnswerEvaluation = None,
+        scaffolding_decision: ScaffoldingDecision = None
     ) -> str:
         """
         Stage 2: Generate Socratic dialogue response
@@ -42,6 +43,7 @@ class DialogueGenerator:
             source_nodes: Retrieved source documents
             memory: Conversation history
             answer_evaluation: Optional evaluation of student's answer
+            scaffolding_decision: Optional scaffolding decision for struggling students
             
         Returns:
             str: Generated tutor response
@@ -62,14 +64,28 @@ class DialogueGenerator:
             # Prepare reasoning information
             full_reasoning_chain = triplet.reasoning_chain if triplet else "No specific reasoning available."
             
-            # Handle default answer evaluation for new questions (from original logic)
-            if not answer_evaluation:
-                answer_evaluation = AnswerEvaluation(
-                    evaluation="new_question",
-                    feedback="This is the first turn."
-                )
-            
-            print(f"DEBUG: Dialogue Generator - Using evaluation: {answer_evaluation.evaluation}")
+            # Handle scaffolding decision (overrides answer evaluation for meta questions)
+            if scaffolding_decision:
+                # Use scaffolding decision metadata to guide LLM generation
+                evaluation_data = {
+                    "evaluation": "scaffolding_request",
+                    "scaffold_type": scaffolding_decision.scaffold_type,
+                    "stuck_level": scaffolding_decision.stuck_level,
+                    "reason": scaffolding_decision.reason,
+                    "feedback": f"Generate {scaffolding_decision.scaffold_type} scaffolding at level {scaffolding_decision.stuck_level}"
+                }
+                print(f"DEBUG: Dialogue Generator - Using scaffolding: {scaffolding_decision.scaffold_type} (level {scaffolding_decision.stuck_level})")
+            elif answer_evaluation:
+                # Use provided answer evaluation
+                evaluation_data = answer_evaluation.model_dump()
+                print(f"DEBUG: Dialogue Generator - Using evaluation: {answer_evaluation.evaluation}")
+            else:
+                # Default for new questions - no formal evaluation needed
+                evaluation_data = {
+                    "evaluation": "new_question",
+                    "feedback": "This is the first turn."
+                }
+                print("DEBUG: Dialogue Generator - Using new question mode")
             
             # Create tutor prompt
             tutor_prompt = TUTOR_TEMPLATE.format(
@@ -78,7 +94,7 @@ class DialogueGenerator:
                 reasoning_step=full_reasoning_chain,
                 conversation_context=conversation_context,
                 user_input=user_input,
-                answer_evaluation_json=answer_evaluation.model_dump_json()
+                answer_evaluation_json=str(evaluation_data)
             )
             
             # Generate response
@@ -88,7 +104,7 @@ class DialogueGenerator:
         except Exception as e:
             print(f"Dialogue generation error: {e}")
             # For new questions, don't use fallback that might trigger scaffolding
-            if not answer_evaluation or answer_evaluation.evaluation == "new_question":
+            if not answer_evaluation:
                 return "I'd like to help you explore this topic. Let's start by thinking about what you already know. What comes to mind when you think about this concept?"
             else:
                 return self._fallback_response(triplet, answer_evaluation)

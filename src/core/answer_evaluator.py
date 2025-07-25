@@ -28,13 +28,21 @@ class AnswerEvaluator:
         )
         self.pydantic_parser = PydanticOutputParser(AnswerEvaluation)
     
-    def evaluate_student_answer(self, student_answer: str, expert_triplet: ReasoningTriplet) -> AnswerEvaluation:
+    def evaluate_student_answer(
+        self, 
+        student_answer: str, 
+        expert_triplet: ReasoningTriplet,
+        tutor_last_message: str = "",
+        conversation_context: str = ""
+    ) -> AnswerEvaluation:
         """
-        Stage 1b: Evaluate student's answer against expert knowledge
+        Stage 1b: Evaluate student's answer against expert knowledge in context
         
         Args:
             student_answer: The student's response
             expert_triplet: Cached expert reasoning and answer
+            tutor_last_message: The tutor's last question/prompt
+            conversation_context: Recent conversation history
             
         Returns:
             AnswerEvaluation: Structured evaluation with feedback
@@ -46,13 +54,15 @@ class AnswerEvaluator:
                     feedback="No expert context available for comparison."
                 )
             
-            # Create evaluation prompt
+            # Create evaluation prompt with full context
             prompt = ANSWER_EVALUATION_PROMPT.format(
-                expert_question=expert_triplet.question,
-                expert_reasoning=expert_triplet.reasoning_chain,
+                original_question=expert_triplet.question,
+                expert_reasoning_chain=expert_triplet.reasoning_chain,
                 expert_answer=expert_triplet.answer,
+                tutor_last_message=tutor_last_message,
                 student_answer=student_answer,
-                format_instructions=self.pydantic_parser.format
+                conversation_context=conversation_context,
+                format_instructions=self.pydantic_parser.get_format_string()
             )
             
             # Get LLM evaluation

@@ -50,19 +50,39 @@ Type: [Write ONLY the category name: answer or meta_question]"""
 # during a follow-up conversation.
 ANSWER_EVALUATION_PROMPT = PromptTemplate(
 """
-You are an AI Tutor's internal "grading" module. Your job is to evaluate a student's answer against the correct, expert-level answer.
+You are an AI Tutor's internal "grading" module. Your job is to evaluate a student's understanding in the context of the ongoing dialogue, that comprehends the expert's reasoning and final answer.
 
 **CONTEXT:**
 - **The Original Question:** {original_question}
-- **The Expert's Answer:** {expert_answer}
+- **The Expert's Reasoning Chain:** {expert_reasoning_chain}
+- **The Expert's Final Answer:** {expert_answer}
+- **The Tutor's last question/prompt:** {tutor_last_message}
+- **The Student's Latest Answer:** {student_answer}
 - **Conversation History:**
 {conversation_context}
-- **The Student's Latest Answer:** {student_answer}
+
+
+**EVALUATION APPROACH:**
+You MUST analyze the student's answer in relation to the expert's reasoning and final answer and evaluate the student's response considering:
+
+1. **Contextual Appropriateness**: Does their answer address what the tutor actually asked?
+2. **Reasoning Alignment**: Does their thinking align with any part of the expert's reasoning chain?
+3. **Conceptual Progress**: Are they demonstrating understanding of key concepts, even if incomplete?
+4. **Pedagogical Value**: What does this response tell us about their current understanding level?
+
+**KEY PRINCIPLES:**
+- Focus on understanding demonstrated, not just literal answer matching
+- Consider partial understanding of reasoning steps as valuable progress
+- Evaluate based on what the tutor specifically asked, not the original question
+- Recognize when students show conceptual grasp even with imperfect articulation
+
+**EVALUATION CATEGORIES:**
+- `correct`: Student demonstrates solid understanding of the concept being discussed
+- `partially_correct`: Student shows some understanding but is missing key elements
+- `incorrect`: Student shows fundamental misunderstanding or is completely off-track
 
 **YOUR TASK:**
-Based on the expert's answer, evaluate the student's latest answer.
-1. Determine if the student's answer is: `correct`, `partially_correct`, or `incorrect`.
-2. Provide a concise, one-sentence `feedback` statement explaining *why* it's correct or incorrect.
+Based on the full context above, evaluate the student's latest answer and provide pedagogical guidance.
 
 **OUTPUT FORMAT:**
 Return a JSON object with two keys: `evaluation` and `feedback`.
@@ -149,12 +169,14 @@ You are leading a Socratic dialogue, using an expert's reasoning chain as your i
         - Use the provided `feedback` to explain the nature of the misunderstanding without giving away the answer.
         - Prompt them to reconsider. Example: "That's a common way to think about it, but it seems you might be confusing concept A with concept B. Let's look at the source material at {source_info} again."
 
-    - **If the `evaluation` starts with `scaffold_`:**
+    - **If the `evaluation` is `scaffolding_request`:**
         - This means the student is stuck and needs help. Your response MUST be encouraging and supportive.
-        - **`scaffold_focus_prompt`**: Provide a focused question or hint about the very next logical step. Do not give away the full answer.
-        - **`scaffold_analogy`**: Create a simple analogy or metaphor to explain the core concept from the expert's answer.
-        - **`scaffold_multiple_choice`**: Create a multiple-choice question based on the expert's answer. The options should include the correct answer and plausible but incorrect distractors.
-        - Start your response with an encouraging phrase like, "No problem at all, that was a tricky question. Let's try looking at it from a different angle." and then execute your scaffolding strategy.
+        - Check the `scaffold_type` field to determine the type of help to provide:
+        - **`focus_prompt`**: Provide a focused question or hint about the very next logical step. Do not give away the full answer.
+        - **`analogy`**: Create a simple analogy or metaphor to explain the core concept from the expert's answer.
+        - **`multiple_choice`**: Create a multiple-choice question based on the expert's answer. The options should include the correct answer and plausible but incorrect distractors.
+        - **`direct_hint`**: Provide more substantial guidance while still being educational.
+        - Start your response with an encouraging phrase like, "No problem at all, that was a tricky question. Let's try looking at it from a different angle." and then execute your scaffolding strategy based on the `scaffold_type`.
 
 3.  **Vary Your Approach, NEVER Repeat a Question:**
     - Scrutinize the `conversation_context`. Do NOT ask a question you have already asked in the recent past.
