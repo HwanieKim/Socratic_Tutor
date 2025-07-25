@@ -18,6 +18,7 @@ import uuid
 import tempfile
 import shutil
 from pathlib import Path
+from fastapi import FastAPI, Response
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -361,23 +362,24 @@ def main():
     # Create and launch interface
     interface = create_gradio_interface()
     
+    # Create a simple FastAPI app for the health check
+    app = FastAPI()
+
+    @app.get("/health")
+    def health_check():
+        return Response(status_code=200, content="OK")
+
+    # Mount the Gradio app
+    app = gr.mount_gradio_app(app, interface, path="/")
+    
     # Launch settings - Railway 최적화
     port = int(os.getenv("PORT", 7860))
     
     print(f"🌐 Launching on 0.0.0.0:{port}")
+    print("ጤ Health check endpoint available at /health")
     
-    interface.launch(
-        server_name="0.0.0.0",
-        server_port=port,
-        share=False,
-        show_error=True,
-        show_tips=False,
-        quiet=True,  # Railway에서는 quiet=True 권장
-        enable_queue=True,  # 다중 사용자 지원
-        max_threads=10,  # 동시 접속 제한
-        favicon_path=None,  # 기본 favicon 사용
-        ssl_verify=False  # Railway에서는 SSL이 프록시에서 처리됨
-    )
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     main()

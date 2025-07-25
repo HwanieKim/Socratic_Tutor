@@ -64,7 +64,7 @@ In Railway Dashboard → Variables, add:
 ```bash
 # Required API Keys
 GOOGLE_API_KEY=your_google_gemini_key
-VOYAGE_API_KEY=your_voyage_embedding_key  
+VOYAGE_API_KEY=your_voyage_embedding_key
 LLAMA_CLOUD_API_KEY=your_llamacloud_parsing_key
 
 # Railway auto-provides these:
@@ -76,6 +76,7 @@ PORT=7860  # Auto-detected
 ### 3. Enable Railway Volumes
 
 In `railway.toml`:
+
 ```toml
 [experimental]
 volumes = ["/app/data"]  # Persistent file storage
@@ -95,23 +96,27 @@ railway connect
 ## 💻 Local Development Setup
 
 ### 1. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 2. Setup Local Database (Optional)
+
 ```bash
 # Install PostgreSQL locally or use SQLite fallback
 # The system will automatically fallback if no DATABASE_URL
 ```
 
 ### 3. Configure Environment
+
 ```bash
 cp .env.example .env
 # Edit .env with your API keys
 ```
 
 ### 4. Test Locally
+
 ```bash
 python test_railway.py
 python railway_main.py
@@ -120,29 +125,33 @@ python railway_main.py
 ## 🎯 Key Features
 
 ### Multi-User Session Management
-- Each user gets unique session ID
-- Isolated document storage per session
-- Session-specific vector indexes
-- Database tracking of all sessions
+
+-   Each user gets unique session ID
+-   Isolated document storage per session
+-   Session-specific vector indexes
+-   Database tracking of all sessions
 
 ### File Upload & Processing
-- Upload PDFs through Gradio interface
-- Files stored in Railway Volume (persistent)
-- Automatic deduplication via file hashing
-- Progress tracking and status updates
+
+-   Upload PDFs through Gradio interface
+-   Files stored in Railway Volume (persistent)
+-   Automatic deduplication via file hashing
+-   Progress tracking and status updates
 
 ### Dynamic Index Creation
-- Index created from uploaded files
-- User-specific index directories
-- Database metadata tracking
-- Automatic engine reinitialization
+
+-   Index created from uploaded files
+-   User-specific index directories
+-   Database metadata tracking
+-   Automatic engine reinitialization
 
 ### Database Integration
-- PostgreSQL for production
-- SQLite fallback for development
-- User session tracking
-- Document metadata storage
-- Conversation history (optional)
+
+-   PostgreSQL for production
+-   SQLite fallback for development
+-   User session tracking
+-   Document metadata storage
+-   Conversation history (optional)
 
 ## 📊 Database Schema
 
@@ -151,15 +160,15 @@ python railway_main.py
 users (id, session_id, created_at, last_active)
 
 -- Uploaded documents
-documents (id, user_session_id, original_filename, display_name, 
+documents (id, user_session_id, original_filename, display_name,
           file_hash, file_path, file_size, upload_date, status, indexed)
 
--- Index metadata  
-document_indexes (id, user_session_id, index_path, document_count, 
+-- Index metadata
+document_indexes (id, user_session_id, index_path, document_count,
                   created_at, is_active)
 
 -- Conversation history (optional)
-conversations (id, user_session_id, user_message, tutor_response, 
+conversations (id, user_session_id, user_message, tutor_response,
                context_used, created_at)
 ```
 
@@ -174,6 +183,7 @@ conversations (id, user_session_id, user_message, tutor_response,
 ## 🛠️ API Endpoints & Components
 
 ### TutorEngine Methods
+
 ```python
 # Session management
 engine = TutorEngine(session_id="user_123")
@@ -191,6 +201,7 @@ engine.save_conversation(user_msg, tutor_response)
 ```
 
 ### Database Operations
+
 ```python
 # User management
 db.create_or_get_user(session_id)
@@ -207,10 +218,11 @@ db.save_conversation(session_id, user_msg, tutor_response)
 ## 🔧 Configuration Options
 
 ### Environment Variables
+
 ```bash
 # Required
 GOOGLE_API_KEY=          # Gemini API for reasoning
-VOYAGE_API_KEY=          # Voyage AI for embeddings  
+VOYAGE_API_KEY=          # Voyage AI for embeddings
 LLAMA_CLOUD_API_KEY=     # LlamaCloud for PDF parsing
 
 # Railway Auto-Generated
@@ -223,6 +235,7 @@ DEBUG_MODE=true          # Enable debug logging
 ```
 
 ### File Paths
+
 ```python
 # Railway Volume structure
 /app/data/
@@ -239,32 +252,37 @@ DEBUG_MODE=true          # Enable debug logging
 ## 🚨 Important Notes
 
 ### Security
-- Session IDs are UUIDs (secure)
-- Files isolated per session
-- No cross-session data access
-- Database connection secured
+
+-   Session IDs are UUIDs (secure)
+-   Files isolated per session
+-   No cross-session data access
+-   Database connection secured
 
 ### Performance
-- Vector indexes cached per session
-- Database connections pooled
-- File deduplication via hashing
-- Old session cleanup available
+
+-   Vector indexes cached per session
+-   Database connections pooled
+-   File deduplication via hashing
+-   Old session cleanup available
 
 ### Scalability
-- Horizontal scaling supported
-- Stateless application design
-- Database handles concurrency
-- Railway Volume shared across instances
+
+-   Horizontal scaling supported
+-   Stateless application design
+-   Database handles concurrency
+-   Railway Volume shared across instances
 
 ## 🔍 Troubleshooting
 
 ### Common Issues
+
 1. **No index found** → Upload PDFs and create index
 2. **Engine not ready** → Wait for index creation to complete
 3. **Database connection failed** → Check DATABASE_URL in Railway
 4. **File upload failed** → Check Railway Volume configuration
 
 ### Debug Commands
+
 ```bash
 # Test all components
 python test_railway.py
@@ -279,12 +297,13 @@ python -c "from core.persistence import create_index_from_files; import asyncio;
 ## 🎉 Success Metrics
 
 After successful deployment:
-- ✅ Multi-user file upload working
-- ✅ Dynamic index creation functioning  
-- ✅ Database storing all metadata
-- ✅ Persistent file storage on Railway Volume
-- ✅ Session isolation maintained
-- ✅ Intelligent tutoring responses generated
+
+-   ✅ Multi-user file upload working
+-   ✅ Dynamic index creation functioning
+-   ✅ Database storing all metadata
+-   ✅ Persistent file storage on Railway Volume
+-   ✅ Session isolation maintained
+-   ✅ Intelligent tutoring responses generated
 
 ---
 
