@@ -24,4 +24,4 @@ fastapi
 uvicorn
 
 llama-index-embeddings-clip
-openai-clip
+git+https://github.com/openai/CLIP.git
