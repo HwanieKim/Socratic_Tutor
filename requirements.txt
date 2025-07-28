@@ -1,3 +1,7 @@
+--index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
 # Core dependencies
 python-dotenv>=1.0.0
 pydantic>=2.0.0
