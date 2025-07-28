@@ -470,7 +470,7 @@ class TutorEngine:
             import asyncio
             
             # Create user-specific index directory
-            user_index_dir = os.path.join(config.USER_INDEXES_DIR, self.session_id)
+            user_index_dir = os.path.join(config.USER_INDEXES_DIR, str(uuid.uuid4()))
             
             print(f"Creating index from {len(file_paths)} documents...")
             asyncio.run(create_index_from_files(file_paths, user_index_dir))
