@@ -1,3 +1,2 @@
 [phases.setup]
-# 빌드 환경의 파이썬 버전을 3.11로 지정합니다.
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "git"]
