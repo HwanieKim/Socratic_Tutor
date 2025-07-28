@@ -10,6 +10,7 @@ Supports Railway deployment with database and session management.
 import os
 import uuid
 import shutil
+import hashlib
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
@@ -546,24 +547,31 @@ class TutorEngine:
             bool: True if engine has index and modules initialized
         """
         return hasattr(self, 'index') and self.index is not None and hasattr(self, 'rag_retriever')
-    
-    def find_matching_index(self) -> Optional[Dict]:
+
+    def find_matching_index(self, uploaded_files: list) -> Optional[Dict]:
         """Find the best matching index for the current session
         
         Returns:
             Optional[Dict]: Metadata of the matching index, or None if not found
         """
-        current_docs = self.db_manager.get_user_documents(self.session_id)
-        if not current_docs:
-            print("No documents found for current session.")
-            return None
-        current_hashes = {doc['file_hash'] for doc in current_docs}
-
-        matching_indexes = self.db_manager.find_indexes_by_file_hash(list(current_hashes))
-
-        if not matching_indexes:
+        if not uploaded_files:
             return None
         
+        current_hashes= set()
+        for file in uploaded_files:
+            if file is None:
+                continue
+            try:
+                with open(file.name, "rb") as f:
+                    file_hash = hashlib.md5(f.read()).hexdigest()
+                    current_hashes.add(file_hash)
+            except Exception as e:
+                print(f"Error calculating hash for {file.name}: {e}")
+        
+        if not current_hashes:
+            return None
+
+        matching_indexes = self.db_manager.find_indexes_by_file_hash(list(current_hashes))
         best_match = None
         smallest_superset_size = float('inf')
 
