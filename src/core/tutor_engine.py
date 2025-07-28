@@ -11,6 +11,7 @@ import os
 import uuid
 import shutil
 import hashlib
+import asyncio
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
@@ -126,15 +127,27 @@ class TutorEngine:
             print(f"Error configuring global settings: {e}")
             raise
     
-    def _load_index_from_path(self, index_path: str):
-        """Load index from specific path"""
-        try:
+    async def _load_index_from_path(self, index_path: str):
+        """[비동기] 경로에서 인덱스를 불러옵니다. 느린 I/O 작업을 별도 스레드에서 실행합니다."""
+        print(f"Starting to load index from path: {index_path}")
+        
+        loop = asyncio.get_running_loop()
+
+        def _sync_load_task():
+            # 이 함수는 동기적으로 동작하는 무거운 작업입니다.
             storage_context = StorageContext.from_defaults(persist_dir=index_path)
-            index = load_index_from_storage(storage_context)
+            return load_index_from_storage(storage_context)
+
+        try:
+            # loop.run_in_executor를 사용해 동기 함수를 비동기적으로 실행합니다.
+            # 이것이 서버를 멈추지 않게 하는 핵심입니다.
+            index = await loop.run_in_executor(None, _sync_load_task)
+            print("Successfully loaded index in background thread.")
             return index
             
         except Exception as e:
-            print(f"Error loading index: {e}")
+            print(f"Error loading index asynchronously: {e}")
+            # 여기서 에러를 다시 발생시켜 상위 함수가 잡을 수 있도록 합니다.
             raise
     
     def get_guidance(self, user_question: str) -> str:
@@ -595,7 +608,7 @@ class TutorEngine:
         return best_match
 
 
-    def load_existing_index(self, index_id: int) -> str:
+    async def load_existing_index(self, index_id: int) -> str:
         """Load an existing index by ID
         
         Args:
@@ -610,7 +623,8 @@ class TutorEngine:
                 return "❌ Index not found"
             if not os.path.exists(index_info['index_path']):
                 return "❌ Index path does not exist"
-            self.index = self._load_index_from_path(index_info['index_path'])
+            
+            self.index = await self._load_index_from_path(index_info['index_path'])
             self._initialize_modules()
             return f"✅ Loaded index from {index_info['index_path']}"
         except Exception as e:

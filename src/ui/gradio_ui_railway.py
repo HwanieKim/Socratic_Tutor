@@ -87,7 +87,7 @@ def handle_file_upload(files):
             None
         )
 
-def handle_load_index_click(index_id):
+async def handle_load_index_click(index_id):
     """Handle click on load index button"""
     global current_session_id
     if not index_id:
@@ -96,7 +96,7 @@ def handle_load_index_click(index_id):
     print(f"Loading index {index_id} for session {current_session_id}")
 
     engine = get_or_create_session(current_session_id)
-    result = engine.load_existing_index(index_id)
+    result = await engine.load_existing_index(index_id)
     return result
 
 
