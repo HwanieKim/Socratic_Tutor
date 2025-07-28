@@ -110,8 +110,3 @@ if __name__ == "__main__":
         print(f"index already exists at {PERSISTENCE_DIR}")
     else:
         asyncio.run(create_index())
-
-
-
-
-

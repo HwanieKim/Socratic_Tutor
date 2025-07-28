@@ -48,29 +48,58 @@ def get_or_create_session(session_id: str = None) -> TutorEngine:
     return user_sessions[session_id]
 
 def handle_file_upload(files):
-    """Handle file upload and save to Railway Volume"""
+    """
+    Handle file upload, and save to Railway Volume,
+    updates dynamically ui button's state
+    """
     global current_session_id
+
+    engine = get_or_create_session(current_session_id)
+    if not engine:
+        return "Failed to create session.", "", gr.update(visible=False), gr.update(visible=False), None
     
-    if not files:
-        return "No files uploaded.", ""
+    # upload file on server saving metadata to database
+    upload_result = engine.upload_files(files)
+
+    # matching with existing index
+    matched_index = engine.find_matching_index()
+
+    session_info = engine.get_session_info()
+    session_display= format_session_info(session_info)
+
+    # Update UI elements based on upload result
+    if matched_index:
+        print(f"Matched existing index: {matched_index}")
+        return(
+            upload_result,
+            session_display,
+            gr.update(visible=True, value=f"Load Index ({matched_index['document_count']} files)"),
+            gr.update(visible=True),
+            matched_index['id']
+        )
+    else:
+        print("No matching index found.")
+        return (
+            upload_result,
+            session_display,
+            gr.update(visible=False),
+            gr.update(visible=True, value="Create New Index"),
+            None
+        )
+
+def handle_load_index_click(index_id):
+    """Handle click on load index button"""
+    global current_session_id
+    if not index_id:
+        return "Error: No index selected."
     
-    try:
-        # Get or create session
-        engine = get_or_create_session(current_session_id)
-        if not engine:
-            return "Failed to create session.", ""
-        
-        # Upload files using TutorEngine
-        result = engine.upload_documents(files)
-        
-        # Get updated session info
-        session_info = engine.get_session_info()
-        session_display = format_session_info(session_info)
-        
-        return result, session_display
-        
-    except Exception as e:
-        return f"Upload failed: {str(e)}", ""
+    print(f"Loading index {index_id} for session {current_session_id}")
+
+    engine = get_or_create_session(current_session_id)
+    result = engine.load_existing_index(index_id)
+    return result
+
+
 
 def create_index_from_uploaded_files():
     """Create index from uploaded files"""
@@ -107,8 +136,8 @@ def format_session_info(session_info: dict) -> str:
         f"Engine: {'Ready' if session_info['engine_ready'] else 'Not Ready'}\n",
         f"Created: {session_info.get('user_created', 'Unknown')}\n"
     ]
-    
-    return status_lines
+
+    return "".join(status_lines)
 
 def get_session_status():
     """Get current session status"""
@@ -248,12 +277,21 @@ def create_gradio_interface():
                 
                 # Index Creation
                 gr.Markdown("##  Setup")
-                
+
+                load_index_btn = gr.Button(
+                    "Load Detected Index", 
+                    variant="secondary", 
+                    visible=False
+                )
+
                 create_index_btn = gr.Button(
                     " Create Index & Initialize Engine", 
-                    variant="primary"
+                    variant="primary",
+                    visible=False
                 )
-                
+
+                matched_index_id = gr.State(value=None)
+
                 setup_status = gr.Textbox(
                     label="Setup Status",
                     interactive=False,
@@ -302,7 +340,7 @@ def create_gradio_interface():
         file_upload.change(
             handle_file_upload,
             inputs=[file_upload],
-            outputs=[upload_status, session_info_display]
+            outputs=[upload_status, session_info_display,load_index_btn, create_index_btn, matched_index_id]
         )
         
         # Index creation
@@ -311,6 +349,12 @@ def create_gradio_interface():
             outputs=[setup_status]
         )
         
+        # Load existing index
+        load_index_btn.click(
+            handle_load_index_click,
+            inputs=[matched_index_id],
+            outputs=[setup_status]
+        )
         # Chat functionality
         send_btn.click(
             get_tutor_response,

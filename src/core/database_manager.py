@@ -2,11 +2,7 @@
 """
 Database Manager Module
 
-Railway PostgreSQL 데이터베이스 관리:
-- 사용자 세션 관리
-- 업로드된 문서 메타데이터 저장
-- 인덱스 정보 관리
-- 대화 히스토리 저장 (선택사항)
+Railway PostgreSQL database management module
 """
 
 import os
@@ -16,12 +12,13 @@ import hashlib
 from datetime import datetime
 from typing import List, Dict, Optional
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    """Railway PostgreSQL 데이터베이스 관리"""
-    
+    """Railway PostgreSQL database management"""
+
     def __init__(self):
         self.database_url = os.getenv("DATABASE_URL")
         if not self.database_url:
@@ -35,79 +32,82 @@ class DatabaseManager:
         """DB 연결 생성"""
         return psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
     
-    def _init_tables(self):
-        """테이블 초기화"""
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    # 사용자 테이블
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS users (
-                            id SERIAL PRIMARY KEY,
-                            session_id VARCHAR(255) UNIQUE NOT NULL,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );
-                    """)
-                    
-                    # 문서 테이블
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS documents (
-                            id SERIAL PRIMARY KEY,
-                            user_session_id VARCHAR(255) NOT NULL,
-                            original_filename VARCHAR(255) NOT NULL,
-                            display_name VARCHAR(255) NOT NULL,
-                            file_hash VARCHAR(64) UNIQUE NOT NULL,
-                            file_path VARCHAR(500) NOT NULL,
-                            file_size INTEGER NOT NULL,
-                            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            status VARCHAR(50) DEFAULT 'uploaded',
-                            indexed BOOLEAN DEFAULT false
-                        );
-                    """)
-                    
-                    # 인덱스 메타데이터 테이블
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS document_indexes (
-                            id SERIAL PRIMARY KEY,
-                            user_session_id VARCHAR(255) NOT NULL,
-                            index_path VARCHAR(500) NOT NULL,
-                            document_count INTEGER NOT NULL,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            is_active BOOLEAN DEFAULT true
-                        );
-                    """)
-                    
-                    # 대화 히스토리 테이블 (선택사항)
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS conversations (
-                            id SERIAL PRIMARY KEY,
-                            user_session_id VARCHAR(255) NOT NULL,
-                            user_message TEXT NOT NULL,
-                            tutor_response TEXT NOT NULL,
-                            context_used TEXT,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );
-                    """)
-                    
-                    # 인덱스 생성
-                    cur.execute("""
-                        CREATE INDEX IF NOT EXISTS idx_documents_session 
-                        ON documents(user_session_id);
-                    """)
-                    cur.execute("""
-                        CREATE INDEX IF NOT EXISTS idx_conversations_session 
-                        ON conversations(user_session_id);
-                    """)
-                    
-                    conn.commit()
-                    logger.info("Database tables initialized successfully")
-                    
-        except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
-            # 개발 환경에서는 SQLite로 fallback 가능
-            if "localhost" in str(self.database_url):
-                logger.info("Falling back to file-based storage for development")
+    # database_manager.py 파일에서 _init_tables 함수를 이 코드로 교체하세요.
+
+def _init_tables(self):
+    """테이블 초기화"""
+    try:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # 사용자 테이블
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255) UNIQUE NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                
+                # 문서 테이블
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS documents (
+                        id SERIAL PRIMARY KEY,
+                        user_session_id VARCHAR(255) NOT NULL,
+                        original_filename VARCHAR(255) NOT NULL,
+                        display_name VARCHAR(255) NOT NULL,
+                        file_hash VARCHAR(64) UNIQUE NOT NULL,
+                        file_path VARCHAR(500) NOT NULL,
+                        file_size INTEGER NOT NULL,
+                        upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        status VARCHAR(50) DEFAULT 'uploaded',
+                        indexed BOOLEAN DEFAULT false
+                    );
+                """)
+                
+                # 인덱스 메타데이터 테이블 
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS document_indexes (
+                        id SERIAL PRIMARY KEY,
+                        user_session_id VARCHAR(255) NOT NULL,
+                        index_path VARCHAR(500) NOT NULL,
+                        document_count INTEGER NOT NULL,
+                        file_hashes JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        is_active BOOLEAN DEFAULT true
+                    );
+                """)
+                
+                # 대화 히스토리 테이블 
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id SERIAL PRIMARY KEY,
+                        user_session_id VARCHAR(255) NOT NULL,
+                        user_message TEXT NOT NULL,
+                        tutor_response TEXT NOT NULL,
+                        context_used TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                
+                # 인덱스 생성
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_documents_session 
+                    ON documents(user_session_id);
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_conversations_session 
+                    ON conversations(user_session_id);
+                """)
+                
+                conn.commit()
+                logger.info("Database tables initialized successfully")
+                
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        # 개발 환경에서는 SQLite로 fallback 가능
+        if "localhost" in str(self.database_url):
+            logger.info("Falling back to file-based storage for development")
     
     def create_or_get_user(self, session_id: str) -> Dict:
         """사용자 생성 또는 조회"""
@@ -197,7 +197,7 @@ class DatabaseManager:
             logger.error(f"Document retrieval failed: {e}")
             return []
     
-    def mark_documents_indexed(self, session_id: str, index_path: str) -> bool:
+    def mark_documents_indexed(self, session_id: str, index_path: str, file_hashes: List[str]) -> bool:
         """문서들을 인덱싱됨으로 표시"""
         try:
             with self.get_connection() as conn:
@@ -221,9 +221,9 @@ class DatabaseManager:
                     # 새 인덱스 메타데이터 저장
                     cur.execute("""
                         INSERT INTO document_indexes 
-                        (user_session_id, index_path, document_count)
-                        VALUES (%s, %s, %s)
-                    """, (session_id, index_path, doc_count))
+                        (user_session_id, index_path, document_count, file_hashes)
+                        VALUES (%s, %s, %s, %s)
+                    """, (session_id, index_path, doc_count, json.dumps(file_hashes)))
                     
                     conn.commit()
                     logger.info(f"Marked {doc_count} documents as indexed for session {session_id}")
@@ -324,3 +324,35 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"File hash calculation failed: {e}")
             return str(hash(file_path))  # Fallback
+
+    def get_all_users_indexes(self, session_id: str) -> List[Dict]:
+        """모든 사용자 인덱스 정보 조회"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT * FROM document_indexes 
+                        WHERE user_session_id = %s
+                        ORDER BY created_at DESC
+                    """, (session_id,))
+                    return [dict(row) for row in cur.fetchall()]
+
+        except Exception as e:
+            logger.error(f"User indexes retrieval failed: {e}")
+            return []
+        
+    def get_index_by_id(self, index_id: int) -> Optional[Dict]:
+        """인덱스 ID로 인덱스 정보 조회"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT * FROM document_indexes 
+                        WHERE id = %s
+                    """, (index_id,))
+                    index_info = cur.fetchone()
+                    return dict(index_info) if index_info else None
+                    
+        except Exception as e:
+            logger.error(f"Index retrieval by ID failed: {e}")
+            return None

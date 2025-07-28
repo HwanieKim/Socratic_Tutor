@@ -392,9 +392,9 @@ class TutorEngine:
     
     # Railway deployment methods for file upload and index management
     
-    def upload_documents(self, uploaded_files) -> str:
-        """Upload documents to Railway Volume and save metadata to database
-        
+    def upload_files(self, uploaded_files) -> str:
+        """Upload files to Railway Volume and save metadata to database
+
         Args:
             uploaded_files: List of uploaded file objects from Gradio
             
@@ -455,26 +455,27 @@ class TutorEngine:
         try:
             # Get uploaded documents from database
             documents = self.db_manager.get_user_documents(self.session_id)
-            uploaded_docs = [doc for doc in documents if doc['status'] == 'uploaded']
+            doc_to_index = [doc for doc in documents if not doc['indexed']]
             
-            if not uploaded_docs:
-                return "❌ No uploaded documents found. Please upload PDF files first."
+            if not doc_to_index:
+                return "All uploaded documents are already part of an index. Nothing to do."
             
             # Prepare file paths for index creation
-            file_paths = [doc['file_path'] for doc in uploaded_docs]
-            
-            # Create user-specific index directory
-            user_index_dir = os.path.join(config.USER_INDEXES_DIR, self.session_id)
+            file_paths = [doc['file_path'] for doc in doc_to_index]
+            file_hashes = [doc['file_hash'] for doc in doc_to_index]
             
             # Import and run index creation
             from .persistence import create_index_from_files
             import asyncio
             
+            # Create user-specific index directory
+            user_index_dir = os.path.join(config.USER_INDEXES_DIR, self.session_id)
+            
             print(f"Creating index from {len(file_paths)} documents...")
             asyncio.run(create_index_from_files(file_paths, user_index_dir))
             
             # Update database to mark documents as indexed
-            self.db_manager.mark_documents_indexed(self.session_id, user_index_dir)
+            self.db_manager.mark_documents_indexed(self.session_id, user_index_dir, file_hashes)
             
             # Reload the engine with new index
             self.index = self._load_index_from_path(user_index_dir)
@@ -545,7 +546,65 @@ class TutorEngine:
             bool: True if engine has index and modules initialized
         """
         return hasattr(self, 'index') and self.index is not None and hasattr(self, 'rag_retriever')
+    
+    def find_matching_index(self) -> Optional[Dict]:
+        """Find the best matching index for the current session
+        
+        Returns:
+            Optional[Dict]: Metadata of the matching index, or None if not found
+        """
+        current_docs = self.db_manager.get_user_documents(self.session_id)
+        if not current_docs:
+            print("No documents found for current session.")
+            return None
+        current_hashes = {doc['file_hash'] for doc in current_docs}
 
+        all_indexes = self.db_manager.get_all_users_indexes(self.session_id)
+        best_match = None
+        smallest_superset_size = float('inf')
+        
+        for index_info in all_indexes:
+            if not index_info.get('file_hashes'):
+                continue
+            index_hashes = set(index_info['file_hashes'])
+
+            # exact match
+            if current_hashes == index_hashes:
+                print(f"Exact match found: {index_info['index_path']}")
+                return index_info
+            
+            # superset match
+            if index_hashes.issuperset(current_hashes):
+                if len(index_hashes) < smallest_superset_size:
+                    smallest_superset_size = len(index_hashes)
+                    best_match = index_info
+
+        if best_match:
+            print(f"Best matching index found: {best_match['index_path']}")
+            
+        return best_match
+
+
+    def load_existing_index(self, index_id: int) -> str:
+        """Load an existing index by ID
+        
+        Args:
+            index_id: ID of the index to load
+            
+        Returns:
+            str: Status message
+        """
+        try:
+            index_info = self.db_manager.get_index_by_id(index_id)
+            if not index_info:
+                return "❌ Index not found"
+            if not os.path.exists(index_info['index_path']):
+                return "❌ Index path does not exist"
+            self.index = self._load_index_from_path(index_info['index_path'])
+            self._initialize_modules()
+            return f"✅ Loaded index from {index_info['index_path']}"
+        except Exception as e:
+            return f"❌ Failed to load index: {str(e)}"
 
 # Legacy method aliases for backward compatibility
 def get_guidance(user_question: str) -> str:
