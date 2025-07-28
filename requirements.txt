@@ -16,7 +16,7 @@ sqlalchemy>=2.0.0
 
 # Database support for Railway
 psycopg2-binary>=2.9.0  # PostgreSQL adapter
-psycopg2>=2.9.0
+
 
 # UI framework
 gradio>=4.0.0
