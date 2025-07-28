@@ -34,80 +34,80 @@ class DatabaseManager:
     
     # database_manager.py 파일에서 _init_tables 함수를 이 코드로 교체하세요.
 
-def _init_tables(self):
-    """테이블 초기화"""
-    try:
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                # 사용자 테이블
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id SERIAL PRIMARY KEY,
-                        session_id VARCHAR(255) UNIQUE NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-                
-                # 문서 테이블
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS documents (
-                        id SERIAL PRIMARY KEY,
-                        user_session_id VARCHAR(255) NOT NULL,
-                        original_filename VARCHAR(255) NOT NULL,
-                        display_name VARCHAR(255) NOT NULL,
-                        file_hash VARCHAR(64) UNIQUE NOT NULL,
-                        file_path VARCHAR(500) NOT NULL,
-                        file_size INTEGER NOT NULL,
-                        upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        status VARCHAR(50) DEFAULT 'uploaded',
-                        indexed BOOLEAN DEFAULT false
-                    );
-                """)
-                
-                # 인덱스 메타데이터 테이블 
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS document_indexes (
-                        id SERIAL PRIMARY KEY,
-                        user_session_id VARCHAR(255) NOT NULL,
-                        index_path VARCHAR(500) NOT NULL,
-                        document_count INTEGER NOT NULL,
-                        file_hashes JSONB,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        is_active BOOLEAN DEFAULT true
-                    );
-                """)
-                
-                # 대화 히스토리 테이블 
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS conversations (
-                        id SERIAL PRIMARY KEY,
-                        user_session_id VARCHAR(255) NOT NULL,
-                        user_message TEXT NOT NULL,
-                        tutor_response TEXT NOT NULL,
-                        context_used TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-                
-                # 인덱스 생성
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_documents_session 
-                    ON documents(user_session_id);
-                """)
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_conversations_session 
-                    ON conversations(user_session_id);
-                """)
-                
-                conn.commit()
-                logger.info("Database tables initialized successfully")
-                
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        # 개발 환경에서는 SQLite로 fallback 가능
-        if "localhost" in str(self.database_url):
-            logger.info("Falling back to file-based storage for development")
+    def _init_tables(self):
+        """테이블 초기화"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # 사용자 테이블
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id SERIAL PRIMARY KEY,
+                            session_id VARCHAR(255) UNIQUE NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    
+                    # 문서 테이블
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS documents (
+                            id SERIAL PRIMARY KEY,
+                            user_session_id VARCHAR(255) NOT NULL,
+                            original_filename VARCHAR(255) NOT NULL,
+                            display_name VARCHAR(255) NOT NULL,
+                            file_hash VARCHAR(64) UNIQUE NOT NULL,
+                            file_path VARCHAR(500) NOT NULL,
+                            file_size INTEGER NOT NULL,
+                            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            status VARCHAR(50) DEFAULT 'uploaded',
+                            indexed BOOLEAN DEFAULT false
+                        );
+                    """)
+                    
+                    # 인덱스 메타데이터 테이블 
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS document_indexes (
+                            id SERIAL PRIMARY KEY,
+                            user_session_id VARCHAR(255) NOT NULL,
+                            index_path VARCHAR(500) NOT NULL,
+                            document_count INTEGER NOT NULL,
+                            file_hashes JSONB,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            is_active BOOLEAN DEFAULT true
+                        );
+                    """)
+                    
+                    # 대화 히스토리 테이블 
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS conversations (
+                            id SERIAL PRIMARY KEY,
+                            user_session_id VARCHAR(255) NOT NULL,
+                            user_message TEXT NOT NULL,
+                            tutor_response TEXT NOT NULL,
+                            context_used TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    
+                    # 인덱스 생성
+                    cur.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_documents_session 
+                        ON documents(user_session_id);
+                    """)
+                    cur.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_conversations_session 
+                        ON conversations(user_session_id);
+                    """)
+                    
+                    conn.commit()
+                    logger.info("Database tables initialized successfully")
+                    
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+            # 개발 환경에서는 SQLite로 fallback 가능
+            if "localhost" in str(self.database_url):
+                logger.info("Falling back to file-based storage for development")
     
     def create_or_get_user(self, session_id: str) -> Dict:
         """사용자 생성 또는 조회"""
