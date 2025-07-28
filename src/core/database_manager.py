@@ -355,7 +355,7 @@ class DatabaseManager:
                 with conn.cursor() as cur:
                     cur.execute("""
                         SELECT * FROM document_indexes 
-                        WHERE file_hashes @> %s::jsonb
+                        WHERE (file_hashes::jsonb) @> %s::jsonb
                     """, (json.dumps(hashes),))
                     return [dict(row) for row in cur.fetchall()]
                     
