@@ -23,3 +23,5 @@ gradio>=4.0.0
 fastapi
 uvicorn
 
+llama-index-embeddings-clip
+CLIP-template
