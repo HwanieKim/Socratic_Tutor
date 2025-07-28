@@ -58,7 +58,7 @@ def handle_file_upload(files):
         # Get or create session
         engine = get_or_create_session(current_session_id)
         if not engine:
-            return "❌ Failed to create session.", ""
+            return "Failed to create session.", ""
         
         # Upload files using TutorEngine
         result = engine.upload_documents(files)
@@ -70,7 +70,7 @@ def handle_file_upload(files):
         return result, session_display
         
     except Exception as e:
-        return f"❌ Upload failed: {str(e)}", ""
+        return f"Upload failed: {str(e)}", ""
 
 def create_index_from_uploaded_files():
     """Create index from uploaded files"""
@@ -79,7 +79,7 @@ def create_index_from_uploaded_files():
     try:
         engine = get_or_create_session(current_session_id)
         if not engine:
-            yield "❌ No session available."
+            yield "No session available."
             return
         
         yield "🔄 Starting index creation..."
@@ -94,7 +94,7 @@ def create_index_from_uploaded_files():
         yield f"{result}\\n\\n📊 Session Status:\\n{format_session_info(session_info)}"
         
     except Exception as e:
-        yield f"❌ Index creation failed: {str(e)}"
+        yield f"Index creation failed: {str(e)}"
 
 def format_session_info(session_info: dict) -> str:
     """Format session information for display"""
@@ -102,13 +102,13 @@ def format_session_info(session_info: dict) -> str:
         return f"Error: {session_info['error']}"
     
     status_lines = [
-        f"🆔 Session: {session_info['session_id'][:8]}...",
-        f"📄 Documents: {session_info['documents_count']} uploaded, {session_info['indexed_documents']} indexed",
-        f"🤖 Engine: {'✅ Ready' if session_info['engine_ready'] else '❌ Not Ready'}",
-        f"📅 Created: {session_info.get('user_created', 'Unknown')}"
+        f"Session: {session_info['session_id'][:8]}...\n",
+        f"Documents: {session_info['documents_count']} uploaded, {session_info['indexed_documents']} indexed\n",
+        f"Engine: {'Ready' if session_info['engine_ready'] else 'Not Ready'}\n",
+        f"Created: {session_info.get('user_created', 'Unknown')}\n"
     ]
     
-    return "\\n".join(status_lines)
+    return status_lines
 
 def get_session_status():
     """Get current session status"""
@@ -138,12 +138,12 @@ def get_tutor_response(user_input, conversation_history):
     try:
         engine = get_or_create_session(current_session_id)
         if not engine:
-            error_msg = "❌ No session available. Please upload documents first."
+            error_msg = "No session available. Please upload documents first."
             conversation_history.append([user_input, error_msg])
             return conversation_history, ""
         
         if not engine.is_ready_for_tutoring():
-            error_msg = "❌ Engine not ready. Please upload documents and create index first."
+            error_msg = "Engine not ready. Please upload documents and create index first."
             conversation_history.append([user_input, error_msg])
             return conversation_history, ""
         
@@ -165,7 +165,7 @@ def get_tutor_response(user_input, conversation_history):
         return conversation_history, ""
         
     except Exception as e:
-        error_msg = f"❌ Error: {str(e)}"
+        error_msg = f"Error: {str(e)}"
         conversation_history.append([user_input, error_msg])
         return conversation_history, ""
 
@@ -177,9 +177,9 @@ def reset_conversation():
         engine = get_or_create_session(current_session_id)
         if engine and hasattr(engine, 'reset'):
             engine.reset()
-        return [], "🔄 Conversation reset successfully!"
+        return [], "Conversation reset successfully!"
     except Exception as e:
-        return [], f"❌ Reset failed: {e}"
+        return [], f"Reset failed: {e}"
 
 def new_session():
     """Start a new session"""
@@ -194,7 +194,7 @@ def new_session():
         oldest_session = min(user_sessions.keys())
         del user_sessions[oldest_session]
     
-    return [], f"🆕 New session created: {new_session_id[:8]}...", "", ""
+    return [], f"New session created: {new_session_id[:8]}...", "", ""
 
 def create_gradio_interface():
     """Create the main Gradio interface"""
@@ -207,24 +207,21 @@ def create_gradio_interface():
     .upload-area { border: 2px dashed #007bff; padding: 20px; border-radius: 10px; text-align: center; }
     """
     
-    with gr.Blocks(title="🤖 AI Tutor - Railway Edition", css=css, theme=gr.themes.Soft()) as interface:
+    with gr.Blocks(title="PolyGlot Socratic Tutor", css=css, theme=gr.themes.Soft()) as interface:
         
         # Header
         gr.Markdown("""
-        # 🤖 AI Socratic Tutor - Railway Edition
-        
-        Upload your PDF documents and engage in intelligent tutoring sessions.
-        Each session is isolated and your documents are stored securely.
-        """)
+        # Socratic Tutor 
+        Upload your PDF documents and engage in intelligent tutoring sessions.""")
         
         with gr.Row():
             with gr.Column(scale=1):
                 # Session Management
-                gr.Markdown("## 📋 Session Management")
+                gr.Markdown("##  Session Management")
                 
                 with gr.Row():
-                    new_session_btn = gr.Button("🆕 New Session", variant="secondary")
-                    session_status_btn = gr.Button("📊 Refresh Status", variant="secondary")
+                    new_session_btn = gr.Button("New Session", variant="secondary")
+                    session_status_btn = gr.Button(" Refresh Status", variant="secondary")
                 
                 session_info_display = gr.Textbox(
                     label="Session Status",
@@ -234,7 +231,7 @@ def create_gradio_interface():
                 )
                 
                 # File Upload Section
-                gr.Markdown("## 📤 Upload Documents")
+                gr.Markdown("## Upload Documents")
                 
                 file_upload = gr.Files(
                     file_types=[".pdf"],
@@ -250,10 +247,10 @@ def create_gradio_interface():
                 )
                 
                 # Index Creation
-                gr.Markdown("## 🔧 Setup")
+                gr.Markdown("##  Setup")
                 
                 create_index_btn = gr.Button(
-                    "🚀 Create Index & Initialize Engine", 
+                    " Create Index & Initialize Engine", 
                     variant="primary"
                 )
                 
@@ -265,7 +262,7 @@ def create_gradio_interface():
                 
             with gr.Column(scale=2):
                 # Chat Interface
-                gr.Markdown("## 💬 Tutoring Session")
+                gr.Markdown("## Tutoring Session")
                 
                 chatbot = gr.Chatbot(
                     label="Conversation",
@@ -281,11 +278,11 @@ def create_gradio_interface():
                         lines=2,
                         scale=4
                     )
-                    send_btn = gr.Button("📤 Send", variant="primary", scale=1)
+                    send_btn = gr.Button("Send", variant="primary", scale=1)
                 
                 with gr.Row():
-                    reset_btn = gr.Button("🔄 Reset Conversation", variant="secondary")
-                    clear_btn = gr.Button("🗑️ Clear Chat", variant="secondary")
+                    reset_btn = gr.Button("Reset Conversation", variant="secondary")
+                    clear_btn = gr.Button("Clear Chat", variant="secondary")
         
         # Event Handlers
         
@@ -348,7 +345,7 @@ def create_gradio_interface():
 
 def main():
     """Main function to launch the interface"""
-    print("🚀 Starting AI Tutor - Railway Edition")
+    print("Starting AI Tutor - Railway Edition")
     
     # Force production environment detection
     os.environ["GRADIO_SERVER_NAME"] = "0.0.0.0"
@@ -356,9 +353,9 @@ def main():
     # Initialize database on startup
     try:
         db = DatabaseManager()
-        print("✅ Database initialized")
+        print("Database initialized")
     except Exception as e:
-        print(f"⚠️ Database initialization warning: {e}")
+        print(f"Database initialization warning: {e}")
     
     # Create and launch interface
     interface = create_gradio_interface()
@@ -376,7 +373,7 @@ def main():
     # Launch settings - Railway 최적화
     port = int(os.getenv("PORT", 7860))
     
-    print(f"🌐 Launching on 0.0.0.0:{port}")
+    print(f"Launching on 0.0.0.0:{port}")
     print("ጤ Health check endpoint available at /health")
     
     import uvicorn
