@@ -75,7 +75,7 @@ class TutorEngine:
         try:
             active_index = self.db_manager.get_active_index(self.session_id)
             if active_index and os.path.exists(active_index['index_path']):
-                self.index = self._load_index_from_path(active_index['index_path'])
+                self.index = self._load_index_from_path_sync(active_index['index_path'])
                 print(f"✅ Loaded user index with {active_index['document_count']} documents")
             else:
                 self.index = None
@@ -87,7 +87,7 @@ class TutorEngine:
         """Try to load default index as fallback"""
         try:
             if os.path.exists(config.PERSISTENCE_DIR):
-                self.index = self._load_index_from_path(config.PERSISTENCE_DIR)
+                self.index = self._load_index_from_path_sync(config.PERSISTENCE_DIR)
                 print("✅ Loaded default index")
             else:
                 self.index = None
@@ -126,8 +126,18 @@ class TutorEngine:
         except Exception as e:
             print(f"Error configuring global settings: {e}")
             raise
-    
-    async def _load_index_from_path(self, index_path: str):
+
+        
+    def _load_index_from_path_sync(self,index_path:str):
+        print(f"Starting to load index from path: {index_path}")
+        try:
+            storage_context = StorageContext.from_defaults(persist_dir=index_path)
+            return load_index_from_storage(storage_context)
+        except Exception as e:
+            print(f"Error loading index from path {index_path}: {e}")
+            raise
+
+    async def _load_index_from_path_async(self, index_path: str):
         """[비동기] 경로에서 인덱스를 불러옵니다. 느린 I/O 작업을 별도 스레드에서 실행합니다."""
         print(f"Starting to load index from path: {index_path}")
         
@@ -492,7 +502,7 @@ class TutorEngine:
             self.db_manager.mark_documents_indexed(self.session_id, user_index_dir, file_hashes)
             
             # Reload the engine with new index
-            self.index = self._load_index_from_path(user_index_dir)
+            self.index = self._load_index_from_path_sync(user_index_dir)
             self._initialize_modules()
             
             return f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
@@ -624,7 +634,7 @@ class TutorEngine:
             if not os.path.exists(index_info['index_path']):
                 return "❌ Index path does not exist"
             
-            self.index = await self._load_index_from_path(index_info['index_path'])
+            self.index = await self._load_index_from_path_async(index_info['index_path'])
             self._initialize_modules()
             return f"✅ Loaded index from {index_info['index_path']}"
         except Exception as e:
