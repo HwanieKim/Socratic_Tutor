@@ -559,15 +559,17 @@ class TutorEngine:
             return None
         current_hashes = {doc['file_hash'] for doc in current_docs}
 
-        all_indexes = self.db_manager.get_all_users_indexes(self.session_id)
+        matching_indexes = self.db_manager.find_indexes_by_file_hash(list(current_hashes))
+
+        if not matching_indexes:
+            return None
+        
         best_match = None
         smallest_superset_size = float('inf')
-        
-        for index_info in all_indexes:
-            if not index_info.get('file_hashes'):
-                continue
-            index_hashes = set(index_info['file_hashes'])
 
+        for index_info in matching_indexes:
+            index_hashes = set(index_info['file_hashes'])
+            
             # exact match
             if current_hashes == index_hashes:
                 print(f"Exact match found: {index_info['index_path']}")

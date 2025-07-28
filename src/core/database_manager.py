@@ -325,21 +325,6 @@ class DatabaseManager:
             logger.error(f"File hash calculation failed: {e}")
             return str(hash(file_path))  # Fallback
 
-    def get_all_users_indexes(self, session_id: str) -> List[Dict]:
-        """모든 사용자 인덱스 정보 조회"""
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT * FROM document_indexes 
-                        WHERE user_session_id = %s
-                        ORDER BY created_at DESC
-                    """, (session_id,))
-                    return [dict(row) for row in cur.fetchall()]
-
-        except Exception as e:
-            logger.error(f"User indexes retrieval failed: {e}")
-            return []
         
     def get_index_by_id(self, index_id: int) -> Optional[Dict]:
         """인덱스 ID로 인덱스 정보 조회"""
@@ -356,3 +341,24 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Index retrieval by ID failed: {e}")
             return None
+    
+    def find_indexes_by_file_hash(self, hashes: List[str]) -> List[Dict]:
+        """
+        lookup indexes by file hashes
+        Args:
+            hashes: List of file hashes to search for
+        Returns:
+            List[Dict]: List of index metadata dictionaries matching the hashes
+        """
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT * FROM document_indexes 
+                        WHERE file_hashes @> %s::jsonb
+                    """, (json.dumps(hashes),))
+                    return [dict(row) for row in cur.fetchall()]
+                    
+        except Exception as e:
+            logger.error(f"Index retrieval by file hash failed: {e}")
+            return []

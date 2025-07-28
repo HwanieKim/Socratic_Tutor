@@ -120,7 +120,7 @@ def create_index_from_uploaded_files():
         
         # Update session info
         session_info = engine.get_session_info()
-        yield f"{result}\\n\\n📊 Session Status:\\n{format_session_info(session_info)}"
+        yield f"{result}\\n\n📊 Session Status:\n{format_session_info(session_info)}"
         
     except Exception as e:
         yield f"Index creation failed: {str(e)}"
