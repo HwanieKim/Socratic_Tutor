@@ -410,12 +410,8 @@ def create_gradio_interface():
             outputs=welcome_modal
         )
 
-        interface.load(
-            fn=get_session_status,
-            inputs=None,
-            outputs=session_info_display
-        )
-
+   
+        
 
         next_to_step_2_btn.click(
             fn=handle_next_step,
