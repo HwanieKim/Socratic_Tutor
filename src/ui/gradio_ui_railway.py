@@ -149,27 +149,33 @@ def create_gradio_interface():
     
     # This CSS is the core of the manual modal implementation.
     css = """
-        #popup_modal_container {
+    #popup_modal_container {
         position: fixed !important; top: 0; left: 0; width: 100%; height: 100%;
-        background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent black background */
+        background-color: rgba(0, 0, 0, 0.75); /* 더 어두운 반투명 배경 */
         display: flex; justify-content: center;
         align-items: center; z-index: 1000;
     }
-        #popup_content_wrapper {
-        background-color: #2b2f38; padding: 2rem; border-radius: 1rem;
+    #popup_content_wrapper {
+        background-color: #2b2f38; padding: 2.5rem; border-radius: 1rem;
         max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
         border: 1px solid #444;
-        position: relative; /* Needed for positioning the close button */
-    }   
-        #close_button {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: transparent;x
-        border: none;
-        font-size: 24px;
-        color: #fff;
+        position: relative; /* 닫기 버튼의 기준점 */
+    }
+    #close_button {
+        position: absolute !important;
+        top: 1rem;
+        right: 1.2rem;
+        background: transparent !important;
+        border: none !important;
+        font-size: 1.8rem !important;
+        font-weight: bold;
+        color: #aaa !important;
         cursor: pointer;
+        z-index: 1010;
+        line-height: 1;
+    }
+    #close_button:hover {
+        color: #fff !important;
     }
     """
     
@@ -181,7 +187,7 @@ def create_gradio_interface():
         matched_index_id = gr.State(value=None)
 
         # --- Main Application Container (Initially Hidden) ---
-        with gr.Column(visible=False) as main_app_container:
+        with gr.Column(visible=True) as main_app_container:
             gr.Markdown("# Socratic Tutor\nUpload your PDF documents and engage in intelligent tutoring sessions.")
             with gr.Row():
                 with gr.Column(scale=1):
@@ -219,19 +225,21 @@ def create_gradio_interface():
                 with gr.Column(visible=True) as step_1_container:
                     gr.Markdown("##  Step 1: Upload Your Documents")
                     gr.Markdown("### Drag & Drop or Click to Upload")
-                    gr.Image(value="assets/upload.png", interactive=False, show_download_button=False)
+                    gr.Image(value="assets/upload.png", interactive=False, show_download_button=False, show_label=False)
                     gr.Markdown("Once uploaded, you will see a status update like this:")
                     gr.Markdown("### Upload Success")
-                    gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False)
+                    gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_2_btn = gr.Button("Next Step", variant="primary")
 
                 # Step 2: Index Creation
                 with gr.Column(visible=False) as step_2_container:
                     gr.Markdown("## Step 2: Let the Socratic Tutor learn your documents")
                     gr.Markdown("After successful uploading, click the 'Create New Index' button that appears.")  
-                    
-                    gr.Image(value="assets/index_creating.png", label="In Progress...", interactive=False, show_download_button=False)
-                    gr.Image(value="assets/index_success.png", label="All Set!", interactive=False, show_download_button=False)
+                    gr.Image(value="assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
+
+                    gr.Markdown("The process may take a few minutes depending on the document size. You will see a completion status when it's done.")
+                    gr.Image(value="assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_3_btn = gr.Button("Next Step", variant="primary")
                 
                 # Step 3: Start Tutoring
@@ -328,7 +336,7 @@ def create_gradio_interface():
             inputs=[user_input, chatbot],
             outputs=[chatbot, user_input]
         )
-        
+
         reset_btn.click(
             reset_conversation,
             outputs=[chatbot, setup_status]
