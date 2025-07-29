@@ -50,7 +50,7 @@ def handle_file_upload_staging(files):
     without saving them to the database immediately.
     """
     if not files:
-        return "No files staged. Upload some files to begin.", gr.update(visible=False), []
+        return "No files staged. Upload some files to begin.", gr.update(visible=False),gr.update(visible=False), []
 
     file_names = [os.path.basename(f.name) for f in files]
     upload_result = (
@@ -149,15 +149,27 @@ def create_gradio_interface():
     
     # This CSS is the core of the manual modal implementation.
     css = """
-    #popup_modal_container {
+        #popup_modal_container {
         position: fixed !important; top: 0; left: 0; width: 100%; height: 100%;
-        background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center;
+        background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent black background */
+        display: flex; justify-content: center;
         align-items: center; z-index: 1000;
     }
-    #popup_content_wrapper {
+        #popup_content_wrapper {
         background-color: #2b2f38; padding: 2rem; border-radius: 1rem;
         max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
         border: 1px solid #444;
+        position: relative; /* Needed for positioning the close button */
+    }   
+        #close_button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: transparent;x
+        border: none;
+        font-size: 24px;
+        color: #fff;
+        cursor: pointer;
     }
     """
     
@@ -190,7 +202,7 @@ def create_gradio_interface():
                     
                 with gr.Column(scale=2):
                     gr.Markdown("## Tutoring Session")
-                    chatbot = gr.Chatbot(label="Conversation", height=500, show_label=True, type="messages")
+                    chatbot = gr.Chatbot(label="Conversation", height=600, show_label=True, type="messages")
                     with gr.Row():
                         user_input = gr.Textbox(label="Ask a question", placeholder="Type your question here...", lines=2, scale=4)
                         send_btn = gr.Button("Send", variant="primary", scale=1)
@@ -201,27 +213,30 @@ def create_gradio_interface():
         # --- Manual Modal/Popup Container (Initially Visible) ---
         with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
             with gr.Column(elem_id="popup_content_wrapper"):
+                close_btn = gr.Button("✖", elem_id="close_button")
+
                 # Step 1: File Upload
                 with gr.Column(visible=True) as step_1_container:
-                    gr.Markdown("## 🚀 Step 1: Upload Your Documents")
-                    gr.Image(value="assets/upload.png", label="Drag & Drop or Click to Upload", interactive=False, show_download_button=False)
+                    gr.Markdown("##  Step 1: Upload Your Documents")
+                    gr.Markdown("### Drag & Drop or Click to Upload")
+                    gr.Image(value="assets/upload.png", interactive=False, show_download_button=False)
                     gr.Markdown("Once uploaded, you will see a status update like this:")
-                    gr.Image(value="assets/PDF_uploaded.png", label="Upload Success", interactive=False, show_download_button=False)
+                    gr.Markdown("### Upload Success")
+                    gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False)
                     next_to_step_2_btn = gr.Button("Next Step", variant="primary")
 
                 # Step 2: Index Creation
                 with gr.Column(visible=False) as step_2_container:
-                    gr.Markdown("## ⚙️ Step 2: Let the AI Learn Your Documents")
-                    gr.Image(value="assets/index_creation.png", label="Click 'Create New Index' to confirm", interactive=False, show_download_button=False)
-                    gr.Markdown("The process will start, and you'll see a completion status when it's done.")
-                    with gr.Row():
-                        gr.Image(value="assets/index_creating.png", label="In Progress...", interactive=False, show_download_button=False)
-                        gr.Image(value="assets/index_success.png", label="All Set!", interactive=False, show_download_button=False)
+                    gr.Markdown("## Step 2: Let the Socratic Tutor learn your documents")
+                    gr.Markdown("After successful uploading, click the 'Create New Index' button that appears.")  
+                    
+                    gr.Image(value="assets/index_creating.png", label="In Progress...", interactive=False, show_download_button=False)
+                    gr.Image(value="assets/index_success.png", label="All Set!", interactive=False, show_download_button=False)
                     next_to_step_3_btn = gr.Button("Next Step", variant="primary")
                 
                 # Step 3: Start Tutoring
                 with gr.Column(visible=False) as step_3_container:
-                    gr.Markdown("## ✅ Step 3: Start Your Tutoring Session!")
+                    gr.Markdown("## Step 3: Start Your Tutoring Session!")
                     gr.Markdown("Everything is ready! Start asking questions in the chat window.")
                     start_btn = gr.Button("Let's Get Started!", variant="primary")
 
@@ -250,23 +265,80 @@ def create_gradio_interface():
         # Connect modal buttons
         next_to_step_2_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
         next_to_step_3_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
+
+        outputs_for_close = [popup_container, main_app_container, step_state, step_1_container, step_2_container, step_3_container]
+        start_btn.click(
+            fn=close_popup_and_reset,
+            inputs=None,
+            outputs=outputs_for_close
+        ) \
+                .then(
+                    fn=get_session_status,
+                    outputs=[session_info_display]
+                )
         
-        start_btn.click(fn=close_popup_and_reset, inputs=None, outputs=[popup_container, main_app_container, step_state, step_1_container, step_2_container, step_3_container]) \
-                   .then(fn=get_session_status, outputs=[session_info_display])
+        close_btn.click(
+            fn=close_popup_and_reset,
+            inputs=None,
+            outputs=outputs_for_close
+        ) \
+                .then(
+                    fn=get_session_status,
+                    outputs=[session_info_display]
+                )
 
         # Main application event handlers
-        new_session_btn.click(new_session, outputs=[chatbot, session_info_display, upload_status, setup_status])
-        session_status_btn.click(get_session_status, outputs=[session_info_display])
+        new_session_btn.click(
+            new_session,
+            outputs=[chatbot, session_info_display, upload_status, setup_status]
+        )
+
+        session_status_btn.click(
+            get_session_status, outputs=[session_info_display]
+        )
+
+        # File upload and index creation
+        file_upload.change(
+            handle_file_upload_staging,
+            inputs=[file_upload],
+            outputs=[upload_status, load_index_btn, create_index_btn, uploaded_files_state]
+        )
+
+        create_index_btn.click(
+            save_and_create_index,
+            inputs=[uploaded_files_state],
+            outputs=[setup_status]
+        )
+
+
+        load_index_btn.click(
+            handle_load_index_click,
+            inputs=[matched_index_id],
+            outputs=[setup_status]
+        )
+
+        send_btn.click(
+            get_tutor_response,
+            inputs=[user_input, chatbot],
+            outputs=[chatbot, user_input]
+        )
+
+        user_input.submit(
+            get_tutor_response,
+            inputs=[user_input, chatbot],
+            outputs=[chatbot, user_input]
+        )
         
-        file_upload.change(handle_file_upload_staging, inputs=[file_upload], outputs=[upload_status, load_index_btn, create_index_btn, uploaded_files_state])
-        create_index_btn.click(save_and_create_index, inputs=[uploaded_files_state], outputs=[setup_status])
-        
-        load_index_btn.click(handle_load_index_click, inputs=[matched_index_id], outputs=[setup_status])
-        send_btn.click(get_tutor_response, inputs=[user_input, chatbot], outputs=[chatbot, user_input])
-        user_input.submit(get_tutor_response, inputs=[user_input, chatbot], outputs=[chatbot, user_input])
-        reset_btn.click(reset_conversation, outputs=[chatbot, setup_status])
-        clear_btn.click(lambda: ([], ""), outputs=[chatbot, user_input])
-        
+        reset_btn.click(
+            reset_conversation,
+            outputs=[chatbot, setup_status]
+        )
+
+        clear_btn.click(
+            lambda: ([], ""), 
+            outputs=[chatbot, user_input]
+        )
+
         # Load initial session status when the app loads. The popup will appear on top.
         interface.load(fn=get_session_status, inputs=None, outputs=[session_info_display])
 
