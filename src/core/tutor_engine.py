@@ -505,7 +505,7 @@ class TutorEngine:
 
             yield "Reloading the engine with new index..."
             # Reload the engine with new index
-            self.index = await self._load_index_from_path_sync(user_index_dir)
+            self.index = await self._load_index_from_path_async(user_index_dir)
             
             yield "Initializing modules..."
             self._initialize_modules()
