@@ -11,10 +11,12 @@ Features:
 """
 
 import gradio as gr
+import gradio_modal as gr_modal
 import time
 import sys
 import os
 import uuid
+
 import tempfile
 import shutil
 from pathlib import Path
@@ -232,6 +234,8 @@ def create_gradio_interface():
     
     with gr.Blocks(title="PolyGlot Socratic Tutor", css=css, theme=gr.themes.Soft()) as interface:
         
+        step_state = gr.State(value=1)
+
         # Header
         gr.Markdown("""
         # Socratic Tutor 
@@ -316,8 +320,123 @@ def create_gradio_interface():
                     reset_btn = gr.Button("Reset Conversation", variant="secondary")
                     clear_btn = gr.Button("Clear Chat", variant="secondary")
         
+
+        with gr_modal.Modal() as welcome_modal:
+            # step 1: Upload PDF documents
+            with gr.Column(visible=True) as step_1_container:
+                gr.Markdown("## Step 1: Upload your PDF documents")
+                gr.Image(
+                    value = "assets/upload.png",
+                    label = "Drag & Drop or Click to Upload",
+                    interactive=False,
+                    show_download_button=False
+                )
+
+                gr.Markdown("Once uploaded, you will see a upload status like this:")
+                gr.Image(
+                    value = "assets/PDF_uploaded.png",
+                    label = "Upload success",
+                    interactive=False,
+                    show_download_button=False
+                )
+                next_to_step_2_btn = gr.Button("Next", variant="primary")
+
+            # step 2: Create index
+            with gr.Column(visible=False) as step_2_container:
+                gr.Markdown("## Step 2: Let the Socratic Tutor learn your documents")
+                gr.Markdown("After successful uploading, click the 'Create New Index' button that appears.")             
+
+                gr.Image(
+                    value = "assets/index_creation.png",
+                    label = "Click this button to create new index",
+                    interactive=False,
+                    show_download_button=False
+                )
+                
+                gr.Markdown("The process may take a few minutes depending on the document size. You will see a completion status when it's done.")
+                gr.Image(
+                    value = "assets/index_creating.png",
+                    label = "In progress...",
+                    interactive=False,
+                    show_download_button=False
+                )
+                gr.Image(
+                    value = "assets/index_success.png",
+                    label = "Index created successfully!",
+                    interactive=False,
+                    show_download_button=False
+                )
+                next_to_step_3_btn = gr.Button("Next", variant="primary")
+            
+            #step 3: Start tutoring
+            with gr.Column(visible=False) as step_3_container:
+                gr.Markdown("## Step 3: Start your tutoring session")
+                gr.Markdown("""
+                            Everything is ready to go!
+                            You can now start asking questions in the **'Tutoring Session'** chat window on the right.
+                            """)
+
+                start_btn = gr.Button("Let's get started!", variant="primary")
         # Event Handlers
         
+
+        def handle_next_step(current_step):
+            new_step = current_step + 1
+            return {
+                step_state: new_step,
+                step_1_container: gr.update(visible=(new_step == 1)),
+                step_2_container: gr.update(visible=(new_step == 2)),
+                step_3_container: gr.update(visible=(new_step == 3)),
+            }
+
+        def close_modal_and_reset():
+            return {
+                welcome_modal: gr.update(open=False),
+                step_state: 1, # Reset state to 1
+                step_1_container: gr.update(visible=True), # Reset containers to their initial visibility
+                step_2_container: gr.update(visible=False),
+                step_3_container: gr.update(visible=False),
+            }
+        
+   
+
+        def load_and_open_modal():
+            initial_status = get_session_status()
+            return {
+                session_info_display: initial_status,
+                welcome_modal: gr.update(open=True),
+            }
+        
+        # Step navigation
+        interface.load(
+            fn=load_and_open_modal,
+            inputs=None,
+            outputs=[welcome_modal, session_info_display]
+        )
+
+
+        next_to_step_2_btn.click(
+            fn=handle_next_step,
+            inputs = [step_state],
+            outputs= [step_state, step_1_container, step_2_container, step_3_container]
+        )
+
+        next_to_step_3_btn.click(
+            fn=handle_next_step,
+            inputs=[step_state],
+            outputs=[step_state, step_1_container, step_2_container, step_3_container]
+        )
+
+        start_btn.click(
+            fn=close_modal_and_reset,
+            inputs=None,
+            outputs=[welcome_modal, step_state, step_1_container, step_2_container, step_3_container]
+        ).then(
+            fn= get_session_status,
+            outputs=session_info_display
+        )
+
+
         # New session
         new_session_btn.click(
             new_session,
@@ -373,11 +492,7 @@ def create_gradio_interface():
             outputs=[chatbot, user_input]
         )
         
-        # Initial status load
-        interface.load(
-            get_session_status,
-            outputs=[session_info_display]
-        )
+        
     
     return interface
 

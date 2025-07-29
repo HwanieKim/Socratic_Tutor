@@ -24,6 +24,7 @@ psycopg2-binary>=2.9.0  # PostgreSQL adapter
 
 # UI framework
 gradio>=4.0.0
+gradio-modal
 fastapi
 uvicorn
 
