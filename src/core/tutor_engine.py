@@ -129,6 +129,7 @@ class TutorEngine:
             print(f"Error configuring global settings: {e}")
             raise
 
+                
         
     def _load_index_from_path_sync(self,index_path:str):
         print(f"Starting to load index from path: {index_path}", flush=True)
