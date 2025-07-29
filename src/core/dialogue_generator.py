@@ -74,18 +74,18 @@ class DialogueGenerator:
                     "reason": scaffolding_decision.reason,
                     "feedback": f"Generate {scaffolding_decision.scaffold_type} scaffolding at level {scaffolding_decision.stuck_level}"
                 }
-                print(f"DEBUG: Dialogue Generator - Using scaffolding: {scaffolding_decision.scaffold_type} (level {scaffolding_decision.stuck_level})")
+                print(f"DEBUG: Dialogue Generator - Using scaffolding: {scaffolding_decision.scaffold_type} (level {scaffolding_decision.stuck_level})", flush=True)
             elif answer_evaluation:
                 # Use provided answer evaluation
                 evaluation_data = answer_evaluation.model_dump()
-                print(f"DEBUG: Dialogue Generator - Using evaluation: {answer_evaluation.evaluation}")
+                print(f"DEBUG: Dialogue Generator - Using evaluation: {answer_evaluation.evaluation}", flush=True)
             else:
                 # Default for new questions - no formal evaluation needed
                 evaluation_data = {
                     "evaluation": "new_question",
                     "feedback": "This is the first turn."
                 }
-                print("DEBUG: Dialogue Generator - Using new question mode")
+                print("DEBUG: Dialogue Generator - Using new question mode", flush=True)
             
             # Create tutor prompt
             tutor_prompt = TUTOR_TEMPLATE.format(

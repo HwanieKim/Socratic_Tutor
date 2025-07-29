@@ -106,7 +106,7 @@ class TutorEngine:
         self.answer_evaluator = AnswerEvaluator()
         self.dialogue_generator = DialogueGenerator()
         self.scaffolding_system = ScaffoldingSystem()
-        print("✅ TutorEngine modules initialized successfully")
+        print("✅ TutorEngine modules initialized successfully", flush=True)
     
     def _configure_global_settings(self):
         """Configure global LlamaIndex settings"""
@@ -131,7 +131,7 @@ class TutorEngine:
 
         
     def _load_index_from_path_sync(self,index_path:str):
-        print(f"Starting to load index from path: {index_path}")
+        print(f"Starting to load index from path: {index_path}", flush=True)
         try:
 
             self._configure_global_settings()
@@ -154,7 +154,7 @@ class TutorEngine:
                 self._load_index_from_path_sync,
                 index_path
             )
-            print(f"Index loaded successfully from {index_path}")
+            print(f"Index loaded successfully from {index_path}", flush=True)
             return index
         except Exception as e:
             print(f"Error loading index from path {index_path}: {e}")
@@ -192,14 +192,14 @@ class TutorEngine:
                 user_question, 
                 self.memory_manager.memory
             )
-            print(f"DEBUG: Classified intent (Stage 0) as: {intent}")
+            print(f"DEBUG: Classified intent (Stage 0) as: {intent}", flush=True)
             
             # Route to appropriate pipeline (And)
             if intent == "new_question":
-                print("DEBUG: Executing pipeline: new_question")
+                print("DEBUG: Executing pipeline: new_question", flush=True)
                 response = self._pipeline_new_question(user_question)
             else:  # follow_up
-                print("DEBUG: Executing pipeline: follow_up")
+                print("DEBUG: Executing pipeline: follow_up", flush=True)
                 response = self._pipeline_follow_up(user_question)
             
             # Add response to memory and return (Result)

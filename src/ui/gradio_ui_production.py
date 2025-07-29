@@ -48,7 +48,7 @@ def initialize_engine():
         
         # List files in index directory
         index_files = os.listdir(PERSISTENCE_DIR)
-        print(f"DEBUG: Index files found: {index_files}")
+        print(f"DEBUG: Index files found: {index_files}", flush=True)
         
         # Check if required index files exist
         required_files = ['index_store.json', 'docstore.json', 'vector_store.json']
@@ -62,12 +62,12 @@ def initialize_engine():
         engine = TutorEngine()
         prod_engine = ProductionTutorEngine(engine)
         success_msg = f"✅ Engine initialized successfully!\nIndex loaded from: {PERSISTENCE_DIR}\nFiles: {len(index_files)} files"
-        print(f"SUCCESS: {success_msg}")
+        print(f"SUCCESS: {success_msg}", flush=True)
         return success_msg
     except Exception as e:
         from core import config
         error_msg = f"❌ Failed to initialize engine: {str(e)}\n\nDebug info:\n- Index path: {getattr(config, 'PERSISTENCE_DIR', 'Unknown')}\n- Error type: {type(e).__name__}"
-        print(f"ERROR: {error_msg}")
+        print(f"ERROR: {error_msg}", flush=True)
         return error_msg
 
 def get_response(user_input, history, user_id="default"):
