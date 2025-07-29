@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 """
-Railway-Ready Gradio UI with File Upload Support
+Railway-Ready Gradio UI with Manual Modal & Staged Upload
 
 Features:
 - Multi-user session management
-- File upload to Railway Volume
+- Staged file upload (DB save on user confirmation)
 - Dynamic index creation
 - Database integration
-- User document management
+- Manual, dependency-free, multi-step tutorial modal
 """
 
 import gradio as gr
-import gradio_modal as gr_modal
 import time
 import sys
 import os
 import uuid
 
-import tempfile
-import shutil
 from pathlib import Path
 from fastapi import FastAPI, Response
 
@@ -27,18 +24,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.tutor_engine import TutorEngine
 from core.database_manager import DatabaseManager
 
-# Global variables for session management
-user_sessions = {}  # session_id -> TutorEngine
+# --- Global variables and Session Management (Unchanged) ---
+user_sessions = {}
 current_session_id = None
 
 def get_or_create_session(session_id: str = None) -> TutorEngine:
-    """Get existing session or create new one"""
     global user_sessions, current_session_id
-    
     if session_id is None:
         session_id = str(uuid.uuid4())
         current_session_id = session_id
-    
     if session_id not in user_sessions:
         try:
             user_sessions[session_id] = TutorEngine(session_id=session_id)
@@ -46,340 +40,194 @@ def get_or_create_session(session_id: str = None) -> TutorEngine:
         except Exception as e:
             print(f"Error creating session: {e}")
             return None
-    
     return user_sessions[session_id]
 
-def handle_file_upload(files):
+# --- [MODIFIED] Backend Functions for Staged File Upload ---
+
+def handle_file_upload_staging(files):
     """
-    Handle file upload, and save to Railway Volume,
-    updates dynamically ui button's state
+    Handles file upload by staging them in a temporary state
+    without saving them to the database immediately.
+    """
+    if not files:
+        return "No files staged. Upload some files to begin.", gr.update(visible=False), []
+
+    file_names = [os.path.basename(f.name) for f in files]
+    upload_result = (
+        f"✅ {len(file_names)} files are staged and ready for indexing:\n"
+        + "\n".join(f"• {name}" for name in file_names)
+    )
+    
+    # Always show the 'Create New Index' button when files are staged
+    return (
+        upload_result,           # -> upload_status
+        gr.update(visible=False),# -> load_index_btn (not used in this flow)
+        gr.update(visible=True), # -> create_index_btn
+        files                    # -> uploaded_files_state
+    )
+
+async def save_and_create_index(staged_files):
+    """
+    Saves the staged files to the database first,
+    then creates an index from them. This is the user-confirmed action.
     """
     global current_session_id
-
-    engine = get_or_create_session(current_session_id)
-    if not engine:
-        return "Failed to create session.", "", gr.update(visible=False), gr.update(visible=False), None
     
-    # upload file on server saving metadata to database
-    upload_result = engine.upload_files(files)
+    if not staged_files:
+        yield "No files were staged. Please upload files first."
+        return
 
-    # matching with existing index
-    matched_index = engine.find_matching_index(files)
-
-    session_info = engine.get_session_info()
-    session_display= format_session_info(session_info)
-
-    # Update UI elements based on upload result
-    if matched_index:
-        print(f"Matched existing index: {matched_index}")
-        return(
-            upload_result,
-            session_display,
-            gr.update(visible=True, value=f"Load Index ({matched_index['document_count']} files)"),
-            gr.update(visible=True),
-            matched_index['id']
-        )
-    else:
-        print("No matching index found.")
-        return (
-            upload_result,
-            session_display,
-            gr.update(visible=False),
-            gr.update(visible=True, value="Create New Index"),
-            None
-        )
-
-async def handle_load_index_click(index_id):
-    """Handle click on load index button"""
-    global current_session_id
-    if not index_id:
-        return "Error: No index selected."
-    
-    print(f"Loading index {index_id} for session {current_session_id}")
-
-    engine = get_or_create_session(current_session_id)
-    result = await engine.load_existing_index(index_id)
-    return result
-
-
-
-async def create_index_from_uploaded_files():
-    """Create index from uploaded files"""
-    global current_session_id
-    
     try:
         engine = get_or_create_session(current_session_id)
         if not engine:
             yield "No session available."
             return
+
+        yield "Step 1/2: Saving files to permanent storage..."
+        # This is where files are actually saved to the DB
+        upload_result = engine.upload_files(staged_files)
+        yield upload_result
         
+        yield "\nStep 2/2: Creating index from saved files..."
         async for status_message in engine.create_user_index():
             yield status_message
 
     except Exception as e:
         yield f"Index creation failed: {str(e)}"
 
+
 def format_session_info(session_info: dict) -> str:
-    """Format session information for display"""
-    if 'error' in session_info:
-        return f"Error: {session_info['error']}"
-    
-    status_lines = [
+    if 'error' in session_info: return f"Error: {session_info['error']}"
+    return "".join([
         f"Session: {session_info['session_id'][:8]}...\n",
         f"Documents: {session_info['documents_count']} uploaded, {session_info['indexed_documents']} indexed\n",
         f"Engine: {'Ready' if session_info['engine_ready'] else 'Not Ready'}\n",
         f"Created: {session_info.get('user_created', 'Unknown')}\n"
-    ]
-
-    return "".join(status_lines)
+    ])
 
 def get_session_status():
-    """Get current session status"""
     global current_session_id
-    
-    try:
-        if current_session_id is None:
-            return "No active session. Upload files to start."
-        
-        engine = user_sessions.get(current_session_id)
-        if not engine:
-            return "Session not found."
-        
-        session_info = engine.get_session_info()
-        return format_session_info(session_info)
-        
-    except Exception as e:
-        return f"Error getting status: {e}"
+    if current_session_id is None: return "No active session. Upload files to start."
+    engine = user_sessions.get(current_session_id)
+    if not engine: return "Session not found."
+    return format_session_info(engine.get_session_info())
 
 def get_tutor_response(user_input, conversation_history):
-    """Get response from tutor engine"""
     global current_session_id
-    
-    if not user_input.strip():
-        return conversation_history, ""
-    
-    # Append the user's message to the history in the correct format
+    if not user_input.strip(): return conversation_history, ""
     conversation_history.append({"role": "user", "content": user_input})
-    try:
-        engine = get_or_create_session(current_session_id)
-        if not engine:
-            error_msg = "No session available. Please upload documents first."
-            conversation_history.append({"role": "assistant", "content": error_msg})
-            return conversation_history, ""
-        
-        if not engine.is_ready_for_tutoring():
-            error_msg = "Engine not ready. Please upload documents and create index first."
-            conversation_history.append({"role": "assistant", "content": error_msg})
-            return conversation_history, ""
-        
-        # Get tutor response
-        start_time = time.time()
-        response = engine.get_guidance(user_input)
-        response_time = time.time() - start_time
-        
-        # Save conversation to database
-        engine.save_conversation(user_input, response)
-        
-        # Add to conversation history
-        conversation_history.append({"role": "assistant", "content": response})
-
-        # Add timing info if in debug mode
-        if os.getenv("DEBUG_MODE"):
-            response += f"\n\n_Response time: {response_time:.2f}s_"
-        
-        return conversation_history, ""
-        
-    except Exception as e:
-        error_msg = f"Error: {str(e)}"
+    engine = get_or_create_session(current_session_id)
+    if not engine or not engine.is_ready_for_tutoring():
+        error_msg = "Engine not ready. Please upload and index documents first."
         conversation_history.append({"role": "assistant", "content": error_msg})
         return conversation_history, ""
-
-def reset_conversation():
-    """Reset conversation history"""
-    global current_session_id
-    
-    try:
-        engine = get_or_create_session(current_session_id)
-        if engine and hasattr(engine, 'reset'):
-            engine.reset()
-        return [], "Conversation reset successfully!"
-    except Exception as e:
-        return [], f"Reset failed: {e}"
+    response = engine.get_guidance(user_input)
+    engine.save_conversation(user_input, response)
+    conversation_history.append({"role": "assistant", "content": response})
+    return conversation_history, ""
 
 def new_session():
-    """Start a new session"""
-    global current_session_id, user_sessions
-    
-    # Create new session ID
-    new_session_id = str(uuid.uuid4())
-    current_session_id = new_session_id
-    
-    # Clean up old session if needed (keep last 5 sessions)
-    if len(user_sessions) > 5:
-        oldest_session = min(user_sessions.keys())
-        del user_sessions[oldest_session]
-    
-    return [], f"New session created: {new_session_id[:8]}...", "", ""
+    global current_session_id
+    current_session_id = str(uuid.uuid4())
+    return [], f"New session created: {current_session_id[:8]}...", "", ""
+
+def reset_conversation():
+    engine = get_or_create_session(current_session_id)
+    if engine: engine.reset()
+    return [], "Conversation reset successfully!"
+
+async def handle_load_index_click(index_id):
+    engine = get_or_create_session(current_session_id)
+    if not index_id or not engine: return "Error."
+    return await engine.load_existing_index(index_id)
+
+
+# --- [FINAL VERSION] Gradio Interface Creation ---
 
 def create_gradio_interface():
-    """Create the main Gradio interface"""
+    """Create the main Gradio interface with a manual, dependency-free modal."""
     
-    # Custom CSS for better styling
+    # This CSS is the core of the manual modal implementation.
     css = """
-    .session-info { background-color: #f0f8ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
-    .status-ready { color: #28a745; font-weight: bold; }
-    .status-error { color: #dc3545; font-weight: bold; }
-    .upload-area { border: 2px dashed #007bff; padding: 20px; border-radius: 10px; text-align: center; }
+    #popup_modal_container {
+        position: fixed !important; top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center;
+        align-items: center; z-index: 1000;
+    }
+    #popup_content_wrapper {
+        background-color: #2b2f38; padding: 2rem; border-radius: 1rem;
+        max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+        border: 1px solid #444;
+    }
     """
     
     with gr.Blocks(title="PolyGlot Socratic Tutor", css=css, theme=gr.themes.Soft()) as interface:
         
+        # --- State Management ---
         step_state = gr.State(value=1)
+        uploaded_files_state = gr.State([])
+        matched_index_id = gr.State(value=None)
 
-        # Header
-        gr.Markdown("""
-        # Socratic Tutor 
-        Upload your PDF documents and engage in intelligent tutoring sessions.""")
+        # --- Main Application Container (Initially Hidden) ---
+        with gr.Column(visible=False) as main_app_container:
+            gr.Markdown("# Socratic Tutor\nUpload your PDF documents and engage in intelligent tutoring sessions.")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.Markdown("## Session Management")
+                    with gr.Row():
+                        new_session_btn = gr.Button("New Session", variant="secondary")
+                        session_status_btn = gr.Button("Refresh Status", variant="secondary")
+                    session_info_display = gr.Textbox(label="Session Status", interactive=False, lines=4)
+                    
+                    gr.Markdown("## Upload Documents")
+                    file_upload = gr.Files(file_types=[".pdf"], file_count="multiple", label="Upload PDF Documents")
+                    upload_status = gr.Textbox(label="Upload Status", interactive=False, lines=3)
+                    
+                    gr.Markdown("## Setup")
+                    load_index_btn = gr.Button("Load Detected Index", variant="secondary", visible=False)
+                    create_index_btn = gr.Button("Create Index & Initialize Engine", variant="primary", visible=False)
+                    setup_status = gr.Textbox(label="Setup Status", interactive=False, lines=4)
+                    
+                with gr.Column(scale=2):
+                    gr.Markdown("## Tutoring Session")
+                    chatbot = gr.Chatbot(label="Conversation", height=500, show_label=True, type="messages")
+                    with gr.Row():
+                        user_input = gr.Textbox(label="Ask a question", placeholder="Type your question here...", lines=2, scale=4)
+                        send_btn = gr.Button("Send", variant="primary", scale=1)
+                    with gr.Row():
+                        reset_btn = gr.Button("Reset Conversation", variant="secondary")
+                        clear_btn = gr.Button("Clear Chat", variant="secondary")
+
+        # --- Manual Modal/Popup Container (Initially Visible) ---
+        with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
+            with gr.Column(elem_id="popup_content_wrapper"):
+                # Step 1: File Upload
+                with gr.Column(visible=True) as step_1_container:
+                    gr.Markdown("## 🚀 Step 1: Upload Your Documents")
+                    gr.Image(value="assets/upload.png", label="Drag & Drop or Click to Upload", interactive=False, show_download_button=False)
+                    gr.Markdown("Once uploaded, you will see a status update like this:")
+                    gr.Image(value="assets/PDF_uploaded.png", label="Upload Success", interactive=False, show_download_button=False)
+                    next_to_step_2_btn = gr.Button("Next Step", variant="primary")
+
+                # Step 2: Index Creation
+                with gr.Column(visible=False) as step_2_container:
+                    gr.Markdown("## ⚙️ Step 2: Let the AI Learn Your Documents")
+                    gr.Image(value="assets/index_creation.png", label="Click 'Create New Index' to confirm", interactive=False, show_download_button=False)
+                    gr.Markdown("The process will start, and you'll see a completion status when it's done.")
+                    with gr.Row():
+                        gr.Image(value="assets/index_creating.png", label="In Progress...", interactive=False, show_download_button=False)
+                        gr.Image(value="assets/index_success.png", label="All Set!", interactive=False, show_download_button=False)
+                    next_to_step_3_btn = gr.Button("Next Step", variant="primary")
+                
+                # Step 3: Start Tutoring
+                with gr.Column(visible=False) as step_3_container:
+                    gr.Markdown("## ✅ Step 3: Start Your Tutoring Session!")
+                    gr.Markdown("Everything is ready! Start asking questions in the chat window.")
+                    start_btn = gr.Button("Let's Get Started!", variant="primary")
+
+        # --- Event Handlers & Connections ---
         
-        with gr.Row():
-            with gr.Column(scale=1):
-                # Session Management
-                gr.Markdown("##  Session Management")
-                
-                with gr.Row():
-                    new_session_btn = gr.Button("New Session", variant="secondary")
-                    session_status_btn = gr.Button(" Refresh Status", variant="secondary")
-                
-                session_info_display = gr.Textbox(
-                    label="Session Status",
-                    interactive=False,
-                    lines=4,
-                    elem_classes=["session-info"]
-                )
-                
-                # File Upload Section
-                gr.Markdown("## Upload Documents")
-                
-                file_upload = gr.Files(
-                    file_types=[".pdf"],
-                    file_count="multiple",
-                    label="Upload PDF Documents",
-                    elem_classes=["upload-area"]
-                )
-                
-                upload_status = gr.Textbox(
-                    label="Upload Status",
-                    interactive=False,
-                    lines=3
-                )
-                
-                # Index Creation
-                gr.Markdown("##  Setup")
-
-                load_index_btn = gr.Button(
-                    "Load Detected Index", 
-                    variant="secondary", 
-                    visible=False
-                )
-
-                create_index_btn = gr.Button(
-                    " Create Index & Initialize Engine", 
-                    variant="primary",
-                    visible=False
-                )
-
-                matched_index_id = gr.State(value=None)
-
-                setup_status = gr.Textbox(
-                    label="Setup Status",
-                    interactive=False,
-                    lines=4
-                )
-                
-            with gr.Column(scale=2):
-                # Chat Interface
-                gr.Markdown("## Tutoring Session")
-                
-                chatbot = gr.Chatbot(
-                    label="Conversation",
-                    height=500,
-                    show_label=True,
-                    type= "messages"  # Use messages type for better chat experience
-                )
-                
-                with gr.Row():
-                    user_input = gr.Textbox(
-                        label="Ask a question",
-                        placeholder="Type your question here...",
-                        lines=2,
-                        scale=4
-                    )
-                    send_btn = gr.Button("Send", variant="primary", scale=1)
-                
-                with gr.Row():
-                    reset_btn = gr.Button("Reset Conversation", variant="secondary")
-                    clear_btn = gr.Button("Clear Chat", variant="secondary")
-        
-
-        with gr_modal.Modal() as welcome_modal:
-            # step 1: Upload PDF documents
-            with gr.Column(visible=True) as step_1_container:
-                gr.Markdown("## Step 1: Upload your PDF documents")
-                gr.Image(
-                    value = "assets/upload.png",
-                    label = "Drag & Drop or Click to Upload",
-                    interactive=False,
-                    show_download_button=False
-                )
-
-                gr.Markdown("Once uploaded, you will see a upload status like this:")
-                gr.Image(
-                    value = "assets/PDF_uploaded.png",
-                    label = "Upload success",
-                    interactive=False,
-                    show_download_button=False
-                )
-                next_to_step_2_btn = gr.Button("Next", variant="primary")
-
-            # step 2: Create index
-            with gr.Column(visible=False) as step_2_container:
-                gr.Markdown("## Step 2: Let the Socratic Tutor learn your documents")
-                gr.Markdown("After successful uploading, click the 'Create New Index' button that appears.")             
-
-                gr.Image(
-                    value = "assets/index_creation.png",
-                    label = "Click this button to create new index",
-                    interactive=False,
-                    show_download_button=False
-                )
-                
-                gr.Markdown("The process may take a few minutes depending on the document size. You will see a completion status when it's done.")
-                gr.Image(
-                    value = "assets/index_creating.png",
-                    label = "In progress...",
-                    interactive=False,
-                    show_download_button=False
-                )
-                gr.Image(
-                    value = "assets/index_success.png",
-                    label = "Index created successfully!",
-                    interactive=False,
-                    show_download_button=False
-                )
-                next_to_step_3_btn = gr.Button("Next", variant="primary")
-            
-            #step 3: Start tutoring
-            with gr.Column(visible=False) as step_3_container:
-                gr.Markdown("## Step 3: Start your tutoring session")
-                gr.Markdown("""
-                            Everything is ready to go!
-                            You can now start asking questions in the **'Tutoring Session'** chat window on the right.
-                            """)
-
-                start_btn = gr.Button("Let's get started!", variant="primary")
-        # Event Handlers
-        
-
+        # Modal/Popup control functions
         def handle_next_step(current_step):
             new_step = current_step + 1
             return {
@@ -389,139 +237,59 @@ def create_gradio_interface():
                 step_3_container: gr.update(visible=(new_step == 3)),
             }
 
-        def close_modal_and_reset():
+        def close_popup_and_reset():
             return {
-                welcome_modal: gr.update(open=False),
-                step_state: 1, # Reset state to 1
-                step_1_container: gr.update(visible=True), # Reset containers to their initial visibility
+                popup_container: gr.update(visible=False),
+                main_app_container: gr.update(visible=True),
+                step_state: 1,
+                step_1_container: gr.update(visible=True),
                 step_2_container: gr.update(visible=False),
                 step_3_container: gr.update(visible=False),
             }
-        
-   
 
-        def open_modal():
-            return  gr.update(open=True)
+        # Connect modal buttons
+        next_to_step_2_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
+        next_to_step_3_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
+        
+        start_btn.click(fn=close_popup_and_reset, inputs=None, outputs=[popup_container, main_app_container, step_state, step_1_container, step_2_container, step_3_container]) \
+                   .then(fn=get_session_status, outputs=[session_info_display])
 
-        # Step navigation
-        interface.load(
-            fn=open_modal,
-            inputs=None,
-            outputs=welcome_modal
-        )
+        # Main application event handlers
+        new_session_btn.click(new_session, outputs=[chatbot, session_info_display, upload_status, setup_status])
+        session_status_btn.click(get_session_status, outputs=[session_info_display])
+        
+        file_upload.change(handle_file_upload_staging, inputs=[file_upload], outputs=[upload_status, load_index_btn, create_index_btn, uploaded_files_state])
+        create_index_btn.click(save_and_create_index, inputs=[uploaded_files_state], outputs=[setup_status])
+        
+        load_index_btn.click(handle_load_index_click, inputs=[matched_index_id], outputs=[setup_status])
+        send_btn.click(get_tutor_response, inputs=[user_input, chatbot], outputs=[chatbot, user_input])
+        user_input.submit(get_tutor_response, inputs=[user_input, chatbot], outputs=[chatbot, user_input])
+        reset_btn.click(reset_conversation, outputs=[chatbot, setup_status])
+        clear_btn.click(lambda: ([], ""), outputs=[chatbot, user_input])
+        
+        # Load initial session status when the app loads. The popup will appear on top.
+        interface.load(fn=get_session_status, inputs=None, outputs=[session_info_display])
 
-   
-        
-
-        next_to_step_2_btn.click(
-            fn=handle_next_step,
-            inputs = [step_state],
-            outputs= [step_state, step_1_container, step_2_container, step_3_container]
-        )
-
-        next_to_step_3_btn.click(
-            fn=handle_next_step,
-            inputs=[step_state],
-            outputs=[step_state, step_1_container, step_2_container, step_3_container]
-        )
-
-        start_btn.click(
-            fn=close_modal_and_reset,
-            inputs=None,
-            outputs=[welcome_modal, step_state, step_1_container, step_2_container, step_3_container]
-        ).then(
-            fn= get_session_status,
-            outputs=session_info_display
-        )
-
-
-        # New session
-        new_session_btn.click(
-            new_session,
-            outputs=[chatbot, session_info_display, upload_status, setup_status]
-        )
-        
-        # Session status
-        session_status_btn.click(
-            get_session_status,
-            outputs=[session_info_display]
-        )
-        
-        # File upload
-        file_upload.change(
-            handle_file_upload,
-            inputs=[file_upload],
-            outputs=[upload_status, session_info_display,load_index_btn, create_index_btn, matched_index_id]
-        )
-        
-        # Index creation
-        create_index_btn.click(
-            create_index_from_uploaded_files,
-            outputs=[setup_status]
-        )
-        
-        # Load existing index
-        load_index_btn.click(
-            handle_load_index_click,
-            inputs=[matched_index_id],
-            outputs=[setup_status]
-        )
-        # Chat functionality
-        send_btn.click(
-            get_tutor_response,
-            inputs=[user_input, chatbot],
-            outputs=[chatbot, user_input]
-        )
-        
-        user_input.submit(
-            get_tutor_response,
-            inputs=[user_input, chatbot],
-            outputs=[chatbot, user_input]
-        )
-        
-        # Reset and clear
-        reset_btn.click(
-            reset_conversation,
-            outputs=[chatbot, setup_status]
-        )
-        
-        clear_btn.click(
-            lambda: ([], ""),
-            outputs=[chatbot, user_input]
-        )
-        
-        
-    
     return interface
 
+# --- Main function to launch the app (Unchanged) ---
 def main():
-    """Main function to launch the interface"""
     print("Starting AI Tutor - Railway Edition")
-    
-    # Force production environment detection
     os.environ["GRADIO_SERVER_NAME"] = "0.0.0.0"
-    
-    # Initialize database on startup
     try:
         db = DatabaseManager()
         print("Database initialized")
     except Exception as e:
         print(f"Database initialization warning: {e}")
     
-    # Create and launch interface
     interface = create_gradio_interface()
-    
-    # Create a simple FastAPI app for the health check
     app = FastAPI()
 
     @app.get("/health")
     def health_check():
         return Response(status_code=200, content="OK")
 
-    # Mount the Gradio app
     app = gr.mount_gradio_app(app, interface, path="/app")
-    
-    # Launch settings - Railway 최적화
     port = int(os.getenv("PORT", 7860))
     
     print(f"Launching on 0.0.0.0:{port}")
