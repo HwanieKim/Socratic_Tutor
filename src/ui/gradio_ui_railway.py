@@ -400,18 +400,20 @@ def create_gradio_interface():
         
    
 
-        def load_and_open_modal():
-            initial_status = get_session_status()
-            return {
-                session_info_display: initial_status,
-                welcome_modal: gr.update(open=True),
-            }
-        
+        def open_modal():
+            return  gr.update(open=True)
+
         # Step navigation
         interface.load(
-            fn=load_and_open_modal,
+            fn=open_modal,
             inputs=None,
-            outputs=[welcome_modal, session_info_display]
+            outputs=welcome_modal
+        )
+
+        interface.load(
+            fn=get_session_status,
+            inputs=None,
+            outputs=session_info_display
         )
 
 
