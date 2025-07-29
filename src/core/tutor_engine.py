@@ -12,7 +12,7 @@ import uuid
 import shutil
 import hashlib
 import asyncio
-from typing import List, Dict, Optional
+from typing import AsyncGenerator, Generator, List, Dict, Optional
 from dotenv import load_dotenv
 
 from llama_index.core import Settings, StorageContext, load_index_from_storage
@@ -470,7 +470,7 @@ class TutorEngine:
         except Exception as e:
             return f"❌ Upload failed: {str(e)}"
     
-    def create_user_index(self) -> str:
+    async def create_user_index(self) -> AsyncGenerator[str, None]:
         """Create user-specific index from uploaded documents
         
         Returns:
@@ -483,7 +483,6 @@ class TutorEngine:
             
             if not doc_to_index:
                 yield "All uploaded documents are already part of an index. Nothing to do."
-                return
 
             # Prepare file paths for index creation
             file_paths = [doc['file_path'] for doc in doc_to_index]
@@ -491,14 +490,14 @@ class TutorEngine:
             
             # Import and run index creation
             from .persistence import create_index_from_files
-            import asyncio
+          
             
             # Create user-specific index directory
             user_index_dir = os.path.join(config.USER_INDEXES_DIR, str(uuid.uuid4()))
             
             yield f"Creating index from {len(file_paths)} documents..."
 
-            asyncio.run(create_index_from_files(file_paths, user_index_dir))
+            await create_index_from_files(file_paths, user_index_dir)
 
             yield "update database to mark documents as indexed"
             # Update database to mark documents as indexed
@@ -506,11 +505,13 @@ class TutorEngine:
 
             yield "Reloading the engine with new index..."
             # Reload the engine with new index
-            self.index = self._load_index_from_path_sync(user_index_dir)
+            self.index = await self._load_index_from_path_sync(user_index_dir)
+            
+            yield "Initializing modules..."
             self._initialize_modules()
 
             yield f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
-
+           
         except Exception as e:
             yield f"❌ Index creation failed: {str(e)}"
     

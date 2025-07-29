@@ -101,7 +101,7 @@ async def handle_load_index_click(index_id):
 
 
 
-def create_index_from_uploaded_files():
+async def create_index_from_uploaded_files():
     """Create index from uploaded files"""
     global current_session_id
     
@@ -111,7 +111,7 @@ def create_index_from_uploaded_files():
             yield "No session available."
             return
         
-        for status_message in engine.create_user_index():
+        async for status_message in engine.create_user_index():
             yield status_message
 
     except Exception as e:
