@@ -111,17 +111,9 @@ def create_index_from_uploaded_files():
             yield "No session available."
             return
         
-        yield "🔄 Starting index creation..."
-        
-        # Create user index
-        result = engine.create_user_index()
-        
-        yield result
-        
-        # Update session info
-        session_info = engine.get_session_info()
-        yield f"{result}\n\n📊 Session Status:\n{format_session_info(session_info)}"
-        
+        for status_message in engine.create_user_index():
+            yield status_message
+
     except Exception as e:
         yield f"Index creation failed: {str(e)}"
 

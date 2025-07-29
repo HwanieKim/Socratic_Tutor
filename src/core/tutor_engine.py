@@ -482,8 +482,9 @@ class TutorEngine:
             doc_to_index = [doc for doc in documents if not doc['indexed']]
             
             if not doc_to_index:
-                return "All uploaded documents are already part of an index. Nothing to do."
-            
+                yield "All uploaded documents are already part of an index. Nothing to do."
+                return
+
             # Prepare file paths for index creation
             file_paths = [doc['file_path'] for doc in doc_to_index]
             file_hashes = [doc['file_hash'] for doc in doc_to_index]
@@ -495,20 +496,23 @@ class TutorEngine:
             # Create user-specific index directory
             user_index_dir = os.path.join(config.USER_INDEXES_DIR, str(uuid.uuid4()))
             
-            print(f"Creating index from {len(file_paths)} documents...")
+            yield f"Creating index from {len(file_paths)} documents..."
+
             asyncio.run(create_index_from_files(file_paths, user_index_dir))
-            
+
+            yield "update database to mark documents as indexed"
             # Update database to mark documents as indexed
             self.db_manager.mark_documents_indexed(self.session_id, user_index_dir, file_hashes)
-            
+
+            yield "Reloading the engine with new index..."
             # Reload the engine with new index
             self.index = self._load_index_from_path_sync(user_index_dir)
             self._initialize_modules()
-            
-            return f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
-            
+
+            yield f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
+
         except Exception as e:
-            return f"❌ Index creation failed: {str(e)}"
+            yield f"❌ Index creation failed: {str(e)}"
     
     def get_user_documents(self) -> List[Dict]:
         """Get list of user's uploaded documents
