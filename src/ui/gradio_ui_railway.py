@@ -156,16 +156,18 @@ def get_tutor_response(user_input, conversation_history):
     if not user_input.strip():
         return conversation_history, ""
     
+    # Append the user's message to the history in the correct format
+    conversation_history.append({"role": "user", "content": user_input})
     try:
         engine = get_or_create_session(current_session_id)
         if not engine:
             error_msg = "No session available. Please upload documents first."
-            conversation_history.append([user_input, error_msg])
+            conversation_history.append({"role": "assistant", "content": error_msg})
             return conversation_history, ""
         
         if not engine.is_ready_for_tutoring():
             error_msg = "Engine not ready. Please upload documents and create index first."
-            conversation_history.append([user_input, error_msg])
+            conversation_history.append({"role": "assistant", "content": error_msg})
             return conversation_history, ""
         
         # Get tutor response
@@ -177,17 +179,17 @@ def get_tutor_response(user_input, conversation_history):
         engine.save_conversation(user_input, response)
         
         # Add to conversation history
-        conversation_history.append([user_input, response])
-        
+        conversation_history.append({"role": "assistant", "content": response})
+
         # Add timing info if in debug mode
         if os.getenv("DEBUG_MODE"):
-            response += f"\\n\\n_Response time: {response_time:.2f}s_"
+            response += f"\n\n_Response time: {response_time:.2f}s_"
         
         return conversation_history, ""
         
     except Exception as e:
         error_msg = f"Error: {str(e)}"
-        conversation_history.append([user_input, error_msg])
+        conversation_history.append({"role": "assistant", "content": error_msg})
         return conversation_history, ""
 
 def reset_conversation():
