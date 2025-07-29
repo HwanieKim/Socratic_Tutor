@@ -151,7 +151,7 @@ def create_gradio_interface():
     css = """
     #popup_modal_container {
         position: fixed !important; top: 0; left: 0; width: 100%; height: 100%;
-        background-color: rgba(0, 0, 0, 0.75); /* 더 어두운 반투명 배경 */
+        background-color: rgba(0, 0, 0, 0.75);
         display: flex; justify-content: center;
         align-items: center; z-index: 1000;
     }
@@ -159,7 +159,7 @@ def create_gradio_interface():
         background-color: #2b2f38; padding: 2.5rem; border-radius: 1rem;
         max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
         border: 1px solid #444;
-        position: relative; /* 닫기 버튼의 기준점 */
+        position: relative;
     }
     #close_button {
         position: absolute !important;
@@ -167,6 +167,12 @@ def create_gradio_interface():
         right: 1.2rem;
         background: transparent !important;
         border: none !important;
+        box-shadow: none !important; /* Gradio 버튼 그림자 제거 */
+        padding: 0 !important;      /* Gradio 버튼 패딩 제거 */
+        margin: 0 !important;       /* Gradio 버튼 마진 제거 */
+        min-width: 0 !important;    /* Gradio 버튼 최소 너비 제거 */
+        width: auto !important;     /* Gradio 버튼 너비 자동 설정 */
+        display: block !important;
         font-size: 1.8rem !important;
         font-weight: bold;
         color: #aaa !important;
@@ -178,7 +184,6 @@ def create_gradio_interface():
         color: #fff !important;
     }
     """
-    
     with gr.Blocks(title="PolyGlot Socratic Tutor", css=css, theme=gr.themes.Soft()) as interface:
         
         # --- State Management ---
