@@ -8,6 +8,8 @@ Supports Railway deployment with database and session management.
 """
 
 import os
+import trace
+import traceback
 import uuid
 import shutil
 import hashlib
@@ -131,10 +133,13 @@ class TutorEngine:
     def _load_index_from_path_sync(self,index_path:str):
         print(f"Starting to load index from path: {index_path}")
         try:
+
+            self._configure_global_settings()
             storage_context = StorageContext.from_defaults(persist_dir=index_path)
             return load_index_from_storage(storage_context)
         except Exception as e:
             print(f"Error loading index from path {index_path}: {e}")
+            traceback.print_exc()
             raise
 
     async def _load_index_from_path_async(self, index_path: str):
@@ -143,21 +148,17 @@ class TutorEngine:
         
         loop = asyncio.get_running_loop()
 
-        def _sync_load_task():
-            # 이 함수는 동기적으로 동작하는 무거운 작업입니다.
-            storage_context = StorageContext.from_defaults(persist_dir=index_path)
-            return load_index_from_storage(storage_context)
-
         try:
-            # loop.run_in_executor를 사용해 동기 함수를 비동기적으로 실행합니다.
-            # 이것이 서버를 멈추지 않게 하는 핵심입니다.
-            index = await loop.run_in_executor(None, _sync_load_task)
-            print("Successfully loaded index in background thread.")
+            index = await loop.run_in_executor(
+                None,  # Use default executor
+                self._load_index_from_path_sync,
+                index_path
+            )
+            print(f"Index loaded successfully from {index_path}")
             return index
-            
         except Exception as e:
-            print(f"Error loading index asynchronously: {e}")
-            # 여기서 에러를 다시 발생시켜 상위 함수가 잡을 수 있도록 합니다.
+            print(f"Error loading index from path {index_path}: {e}")
+            traceback.print_exc()
             raise
     
     def get_guidance(self, user_question: str) -> str:
