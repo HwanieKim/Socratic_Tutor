@@ -196,24 +196,24 @@ def create_gradio_interface():
             gr.Markdown("# Socratic Tutor\nUpload your PDF documents and engage in intelligent tutoring sessions.")
             with gr.Row():
                 with gr.Column(scale=1):
-                    gr.Markdown("## Session Management")
-                    with gr.Row():
-                        new_session_btn = gr.Button("New Session", variant="secondary")
-                        session_status_btn = gr.Button("Refresh Status", variant="secondary")
+                    # gr.Markdown("## Session Management")
+                    # with gr.Row():
+                    #     new_session_btn = gr.Button("New Session", variant="secondary")
+                    #     session_status_btn = gr.Button("Refresh Status", variant="secondary")
                     session_info_display = gr.Textbox(label="Session Status", interactive=False, lines=4)
                     
-                    gr.Markdown("## Upload Documents")
+                    gr.Markdown("## Step 1: Upload Documents")
                     file_upload = gr.Files(file_types=[".pdf"], file_count="multiple", label="Upload PDF Documents")
                     upload_status = gr.Textbox(label="Upload Status", interactive=False, lines=3)
                     
                     gr.Markdown("## Setup")
-                    load_index_btn = gr.Button("Load Detected Index", variant="secondary", visible=False)
-                    create_index_btn = gr.Button("Create Index & Initialize Engine", variant="primary", visible=False)
+                    load_index_btn = gr.Button("Step 2: Load Detected Index", variant="secondary", visible=False)
+                    create_index_btn = gr.Button("Step 2: Create Index & Initialize Engine", variant="primary", visible=False)
                     setup_status = gr.Textbox(label="Setup Status", interactive=False, lines=4)
                     
                 with gr.Column(scale=2):
-                    gr.Markdown("## Tutoring Session")
-                    chatbot = gr.Chatbot(label="Conversation", height=600, show_label=True, type="messages")
+                    gr.Markdown("## Step 3: Conversation with Tutor")
+                    chatbot = gr.Chatbot( height=600, show_label=False, type="messages")
                     with gr.Row():
                         user_input = gr.Textbox(label="Ask a question", placeholder="Type your question here...", lines=2, scale=4)
                         send_btn = gr.Button("Send", variant="primary", scale=1)
