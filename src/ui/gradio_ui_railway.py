@@ -196,10 +196,10 @@ def create_gradio_interface():
             gr.Markdown("# Socratic Tutor\nUpload your PDF documents and engage in intelligent tutoring sessions.")
             with gr.Row():
                 with gr.Column(scale=1):
-                    # gr.Markdown("## Session Management")
-                    # with gr.Row():
-                    #     new_session_btn = gr.Button("New Session", variant="secondary")
-                    #     session_status_btn = gr.Button("Refresh Status", variant="secondary")
+                    gr.Markdown("## Session Management")
+                    with gr.Row():
+                        new_session_btn = gr.Button("New Session", variant="secondary")
+                        session_status_btn = gr.Button("Refresh Status", variant="secondary")
                     session_info_display = gr.Textbox(label="Session Status", interactive=False, lines=4)
                     
                     gr.Markdown("## Step 1: Upload Documents")
