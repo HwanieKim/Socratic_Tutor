@@ -233,25 +233,25 @@ def create_gradio_interface():
         matched_index_id = gr.State(value=None)
 
         # --- language selector ---
-        with gr.Row():
-            language_choices = [
-                (data['language_name'], lang) for lang, data in UI_TEXTS.items()
-            ]
+        with gr.Row(vertical_alignment = "top"):
+            with gr.Column(scale = 10):
+                app_title = gr.Markdown(get_ui_text('app_title', 'en'))
+                app_header = gr.Markdown(get_ui_text('app_header', 'en'))
 
-            dynamic_label = "/".join([data['language_name'] for data in UI_TEXTS.values()])
-            language_dropdown = gr.Dropdown(
-                choices=language_choices,
-                value="en",
-                label=dynamic_label,
-                interactive=True,
-                scale=1
+            with gr.Column(scale=2, min_width=180):
+                language_choices = [
+                    (data['language_name'], lang) for lang, data in UI_TEXTS.items()
+                ]
+                language_dropdown = gr.Dropdown(
+                    choices=language_choices,
+                    value="en",
+                    label="language",
+                    interactive=True,
+                    scale=1
 
-            )
-            gr.Markdown("")
+                )
         # --- Main Application Container (Initially Hidden) ---
         with gr.Column(visible=True) as main_app_container:
-            app_title = gr.Markdown(get_ui_text('app_title', 'en'))
-            app_header = gr.Markdown(get_ui_text('app_header', 'en'))
             with gr.Row():
                 with gr.Column(scale=1):
                     session_header = gr.Markdown(get_ui_text('session_header','en'))
