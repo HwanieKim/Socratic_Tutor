@@ -63,6 +63,14 @@ class TutorEngine:
 
         print(f"✅ TutorEngine for session {self.session_id} initialized (lightweight). Engine will load on first use.")
     
+    async def initialize_engine(self):
+        await self._ensure_engine_ready()
+        if self._is_engine_ready:
+            print("✅ Engine warm-up successful. Ready for requests.")
+        else:
+            print("⚠️ Engine warm-up failed. Check configuration.")
+            
+            
     async def _ensure_engine_ready(self):
         async with self._lock:
             if self._is_engine_ready:

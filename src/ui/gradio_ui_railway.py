@@ -15,9 +15,12 @@ import time
 import sys
 import os
 import uuid
+import asyncio
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Response
+from requests import session
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -132,10 +135,19 @@ def format_session_info(session_info: dict) -> str:
 def get_session_status():
     global current_session_id
     if current_session_id is None: return "No active session. Upload files to start."
-    engine = user_sessions.get(current_session_id)
-    if not engine: return "Session not found."
-    return format_session_info(engine.get_session_info())
-
+    
+    
+    
+    try:
+        engine = user_sessions.get(current_session_id)
+        if not engine: 
+            return "Session not found."
+    
+        session_info = engine.get_session_info()
+        return session_info
+    except Exception as e:
+        print(f"Error retrieving session status: {e}")
+        return "Error retrieving session status."
 def get_tutor_response(user_input, conversation_history, lang):
     global current_session_id
     if not user_input.strip(): return conversation_history, ""
@@ -453,8 +465,22 @@ def main():
     except Exception as e:
         print(f"Database initialization warning: {e}")
     
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        default_session_id = "default_warmup_session"
+        engine = get_or_create_session(default_session_id)
+        
+        if engine:
+            asyncio.create_task(engine.initialize_engine())
+        else:
+            print("⚠️ No engine instance created.")
+        yield
+        # 애플리케이션 종료 시 실행될 코드 (필요 시 추가)
+        print("FastAPI lifespan shutdown.")
+    
     interface = create_gradio_interface()
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     @app.get("/health")
     def health_check():
