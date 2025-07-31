@@ -7,6 +7,7 @@ Follows SOAR pattern: State, Operator, And, Result
 Supports Railway deployment with database and session management.
 """
 
+import json
 import os
 import trace
 import traceback
@@ -432,6 +433,7 @@ class TutorEngine:
                 return "❌ No files provided"
             
             saved_files = []
+            skipped_files = []
             user_upload_dir = os.path.join(config.USER_UPLOADS_DIR, self.session_id)
             os.makedirs(user_upload_dir, exist_ok=True)
             
@@ -464,10 +466,13 @@ class TutorEngine:
                 if doc_id > 0:
                     saved_files.append(original_filename)
             
+            message_parts = []
             if saved_files:
-                return f"✅ Successfully uploaded {len(saved_files)} documents:\n" + "\n".join([f"• {name}" for name in saved_files])
-            else:
-                return "❌ No documents were saved successfully"
+                message_parts.append(f"✅ Successfully saved {len(saved_files)} new documents.")
+            if skipped_files:
+                message_parts.append(f"ℹ️ Skipped {len(skipped_files)} documents that already exist in the database.")
+            
+            return "\n".join(message_parts) if message_parts else "No new documents to save."
                 
         except Exception as e:
             return f"❌ Upload failed: {str(e)}"
@@ -578,36 +583,32 @@ class TutorEngine:
         """
         return hasattr(self, 'index') and self.index is not None and hasattr(self, 'rag_retriever')
 
-    def find_matching_index(self, uploaded_files: list) -> Optional[Dict]:
+    def find_matching_index(self, file_hashes: list[str]) -> Optional[Dict]:
         """Find the best matching index for the current session
         
         Returns:
             Optional[Dict]: Metadata of the matching index, or None if not found
         """
-        if not uploaded_files:
-            return None
-        
-        current_hashes= set()
-        for file in uploaded_files:
-            if file is None:
-                continue
-            try:
-                with open(file.name, "rb") as f:
-                    file_hash = hashlib.md5(f.read()).hexdigest()
-                    current_hashes.add(file_hash)
-            except Exception as e:
-                print(f"Error calculating hash for {file.name}: {e}")
-        
-        if not current_hashes:
+        if not file_hashes:
             return None
 
+        current_hashes = set(file_hashes)
+
         matching_indexes = self.db_manager.find_indexes_by_file_hash(list(current_hashes))
+        if not matching_indexes:
+            return None
+        
+
         best_match = None
         smallest_superset_size = float('inf')
 
         for index_info in matching_indexes:
-            index_hashes = set(index_info['file_hashes'])
             
+            try:
+                index_hashes = set(json.loads(index_info['file_hashes']))
+            except (json.JSONDecodeError, TypeError):
+                index_hashes = set(index_info['file_hashes'])  # Fallback for legacy format
+                
             # exact match
             if current_hashes == index_hashes:
                 print(f"Exact match found: {index_info['index_path']}")
