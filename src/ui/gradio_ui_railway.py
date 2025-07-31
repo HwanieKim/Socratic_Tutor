@@ -23,6 +23,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.tutor_engine import TutorEngine
 from core.database_manager import DatabaseManager
+from core.i18n import get_ui_text, UI_TEXTS
 
 # --- Global variables and Session Management (Unchanged) ---
 user_sessions = {}
@@ -44,28 +45,51 @@ def get_or_create_session(session_id: str = None) -> TutorEngine:
 
 # --- [MODIFIED] Backend Functions for Staged File Upload ---
 
-def handle_file_upload_staging(files):
+def handle_file_upload_staging(files,lang):
     """
     Handles file upload by staging them in a temporary state
     without saving them to the database immediately.
     """
+    global current_session_id
     if not files:
-        return "No files staged. Upload some files to begin.", gr.update(visible=False),gr.update(visible=False), []
+        return get_ui_text("no_files_staged", lang), gr.update(visible=False), gr.update(visible=False), None, []
 
-    file_names = [os.path.basename(f.name) for f in files]
-    upload_result = (
-        f"✅ {len(file_names)} files are staged and ready for indexing:\n"
-        + "\n".join(f"• {name}" for name in file_names)
-    )
+    engine = get_or_create_session(current_session_id)
+    if not engine:
+        return get_ui_text("session_error", lang), gr.update(visible=False), gr.update(visible=False), None, []
+
+    try:
+        current_hashes = [engine.db_manager.calculate_file_hash(file.name) for file in files]
+    except FileNotFoundError:
+        return get_ui_text("file_not_found_error", lang), gr.update(visible=False), gr.update(visible=False), None, files
     
-    # Always show the 'Create New Index' button when files are staged
-    return (
-        upload_result,           # -> upload_status
-        gr.update(visible=False),# -> load_index_btn (not used in this flow)
-        gr.update(visible=True), # -> create_index_btn
-        files                    # -> uploaded_files_state
+    matched_index = engine.find_matching_index(current_hashes)
+
+    file_names = [os.path.basename(file.name) for file in files]
+    staged_msg = (
+        f"{len(files)} file(s) staged for upload: \n" +
+        "\n".join([f" - {name}" for name in file_names])
     )
 
+    if matched_index:
+        status_msg = f"{staged_msg}\n\n {get_ui_text('existing_index_found', lang)}"
+        return(
+            status_msg,
+            gr.update(visible=True),
+            gr.update(visible=False),
+            matched_index['id'],
+            files
+        )
+    else:
+        status_msg = f"{staged_msg}\n\n {get_ui_text('no_index_found', lang)}"
+        return (
+            status_msg,
+            gr.update(visible=False),
+            gr.update(visible=True),
+            None,
+            files
+        )
+    
 async def save_and_create_index(staged_files):
     """
     Saves the staged files to the database first,
@@ -112,15 +136,19 @@ def get_session_status():
     if not engine: return "Session not found."
     return format_session_info(engine.get_session_info())
 
-def get_tutor_response(user_input, conversation_history):
+def get_tutor_response(user_input, conversation_history, lang):
     global current_session_id
     if not user_input.strip(): return conversation_history, ""
+
     conversation_history.append({"role": "user", "content": user_input})
+    
     engine = get_or_create_session(current_session_id)
     if not engine or not engine.is_ready_for_tutoring():
-        error_msg = "Engine not ready. Please upload and index documents first."
+        error_msg = get_ui_text("engine_not_ready", lang)
         conversation_history.append({"role": "assistant", "content": error_msg})
         return conversation_history, ""
+    
+    # Get tutor's response based on user input
     response = engine.get_guidance(user_input)
     engine.save_conversation(user_input, response)
     conversation_history.append({"role": "assistant", "content": response})
@@ -187,39 +215,58 @@ def create_gradio_interface():
     with gr.Blocks(title="PolyGlot Socratic Tutor", css=css, theme=gr.themes.Soft()) as interface:
         
         # --- State Management ---
+        language_state = gr.State(value="en")
         step_state = gr.State(value=1)
         uploaded_files_state = gr.State([])
         matched_index_id = gr.State(value=None)
 
+        # --- language selector ---
+        with gr.Row():
+            language_choices = [
+                (data['language_name'], lang) for lang, data in UI_TEXTS.items()
+            ]
+
+            dynamic_label = "/".join([data['language_name'] for data in UI_TEXTS.values()])
+            language_dropdown = gr.Dropdown(
+                choices=language_choices,
+                value="en",
+                label=dynamic_label,
+                interactive=True,
+                scale=1
+
+            )
+            gr.Markdown("",scale=3)
         # --- Main Application Container (Initially Hidden) ---
         with gr.Column(visible=True) as main_app_container:
-            gr.Markdown("# Socratic Tutor\nUpload your PDF documents and engage in intelligent tutoring sessions.")
+            app_title = gr.Markdown(get_ui_text('app_title', 'en'))
+            app_header = gr.Markdown(get_ui_text('app_header', 'en'))
             with gr.Row():
                 with gr.Column(scale=1):
-                    gr.Markdown("## Session Management")
+                    session_header = gr.Markdown(get_ui_text('session_header','en'))
                     with gr.Row():
-                        new_session_btn = gr.Button("New Session", variant="secondary")
-                        session_status_btn = gr.Button("Refresh Status", variant="secondary")
-                    session_info_display = gr.Textbox(label="Session Status", interactive=False, lines=4)
-                    
-                    gr.Markdown("## Step 1: Upload Documents")
-                    file_upload = gr.Files(file_types=[".pdf"], file_count="multiple", label="Upload PDF Documents")
-                    upload_status = gr.Textbox(label="Upload Status", interactive=False, lines=3)
-                    
-                    gr.Markdown("## Setup")
-                    load_index_btn = gr.Button("Step 2: Load Detected Index", variant="secondary", visible=False)
-                    create_index_btn = gr.Button("Step 2: Create Index & Initialize Engine", variant="primary", visible=False)
-                    setup_status = gr.Textbox(label="Setup Status", interactive=False, lines=4)
-                    
+                        new_session_btn = gr.Button(get_ui_text('new_session_btn','en'), variant="secondary")
+                        session_status_btn = gr.Button(get_ui_text('session_status_btn','en'), variant="secondary")
+                    session_info_display = gr.Textbox(label= get_ui_text('session_status_label','en'), interactive=False, lines=4)
+
+                    upload_header = gr.Markdown(get_ui_text('upload_header','en'))
+                    file_upload = gr.Files(file_types=[".pdf"], file_count="multiple", label=get_ui_text('file_upload_label','en'))
+                    upload_status = gr.Textbox(label=get_ui_text('upload_status_label','en'), interactive=False, lines=3)
+
+                    setup_header =gr.Markdown(get_ui_text('setup_header','en'))
+                    load_index_btn = gr.Button(get_ui_text('load_index_btn','en'), variant="secondary", visible=False)
+                    create_index_btn = gr.Button(get_ui_text('create_index_btn','en'), variant="primary", visible=False)
+                    setup_status = gr.Textbox(label=get_ui_text('setup_status_label','en'), interactive=False, lines=4)
+
                 with gr.Column(scale=2):
-                    gr.Markdown("## Step 3: Conversation with Tutor")
+                    conversation_header = gr.Markdown(get_ui_text('conversation_header','en'))
+                    chat_disclaimer_md = gr.Markdown(f"*{get_ui_text('chat_disclaimer','en')}*")
                     chatbot = gr.Chatbot( height=600, show_label=False, type="messages")
                     with gr.Row():
-                        user_input = gr.Textbox(label="Ask a question", placeholder="Type your question here...", lines=2, scale=4)
-                        send_btn = gr.Button("Send", variant="primary", scale=1)
+                        user_input = gr.Textbox(label=get_ui_text('ask_question_label','en'), placeholder=get_ui_text('user_input_placeholder','en'), lines=2, scale=4)
+                        send_btn = gr.Button(get_ui_text('send_btn','en'), variant="primary", scale=1)
                     with gr.Row():
-                        reset_btn = gr.Button("Reset Conversation", variant="secondary")
-                        clear_btn = gr.Button("Clear Chat", variant="secondary")
+                        reset_btn = gr.Button(get_ui_text('reset_btn','en'), variant="secondary")
+                        clear_btn = gr.Button(get_ui_text('clear_btn','en'), variant="secondary")
 
         # --- Manual Modal/Popup Container (Initially Visible) ---
         with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
@@ -255,6 +302,45 @@ def create_gradio_interface():
 
         # --- Event Handlers & Connections ---
         
+        # Language change handler
+        def update_ui_language(lang):
+             return {
+                language_state: lang,
+                app_title: gr.update(value=f"# {get_ui_text('app_title', lang)}"),
+                app_header: gr.update(value=get_ui_text('app_header', lang)),
+                session_header: gr.update(value=get_ui_text('session_header', lang)),
+                new_session_btn: gr.update(value=get_ui_text('new_session_btn', lang)),
+                session_status_btn: gr.update(value=get_ui_text('refresh_status_btn', lang)),
+                session_info_display: gr.update(label=get_ui_text('session_status_label', lang)),
+                upload_header: gr.update(value=get_ui_text('upload_header', lang)),
+                file_upload: gr.update(label=get_ui_text('file_upload_label', lang)),
+                upload_status: gr.update(label=get_ui_text('upload_status_label', lang)),
+                setup_header: gr.update(value=get_ui_text('setup_header', lang)),
+                load_index_btn: gr.update(value=get_ui_text('load_index_btn', lang)),
+                create_index_btn: gr.update(value=get_ui_text('create_index_btn', lang)),
+                setup_status: gr.update(label=get_ui_text('setup_status_label', lang)),
+                conversation_header: gr.update(value=get_ui_text('conversation_header', lang)),
+                chat_disclaimer_md: gr.update(value=f"*{get_ui_text('chat_disclaimer', lang)}*"),
+                user_input: gr.update(label=get_ui_text('ask_question_label', lang)),
+                send_btn: gr.update(value=get_ui_text('send_btn', lang)),
+                reset_btn: gr.update(value=get_ui_text('reset_btn', lang)),
+                clear_btn: gr.update(value=get_ui_text('clear_btn', lang)),
+            }
+
+        all_ui_outputs = [
+            language_state, app_title, app_header, session_header, new_session_btn,
+            session_status_btn, session_info_display, upload_header, file_upload,
+            upload_status, setup_header, load_index_btn, create_index_btn,
+            setup_status, conversation_header, chat_disclaimer_md, user_input,
+            send_btn, reset_btn, clear_btn
+        ]
+
+        language_dropdown.change(
+            fn=update_ui_language,
+            inputs=[language_dropdown],
+            outputs=all_ui_outputs
+        )
+
         # Modal/Popup control functions
         def handle_next_step(current_step):
             new_step = current_step + 1
@@ -313,8 +399,8 @@ def create_gradio_interface():
         # File upload and index creation
         file_upload.change(
             handle_file_upload_staging,
-            inputs=[file_upload],
-            outputs=[upload_status, load_index_btn, create_index_btn, uploaded_files_state]
+            inputs=[file_upload, language_state],
+            outputs=[upload_status, load_index_btn, create_index_btn, matched_index_id, uploaded_files_state]
         )
 
         create_index_btn.click(
@@ -332,13 +418,13 @@ def create_gradio_interface():
 
         send_btn.click(
             get_tutor_response,
-            inputs=[user_input, chatbot],
+            inputs=[user_input, chatbot, language_state],
             outputs=[chatbot, user_input]
         )
 
         user_input.submit(
             get_tutor_response,
-            inputs=[user_input, chatbot],
+            inputs=[user_input, chatbot, language_state],
             outputs=[chatbot, user_input]
         )
 
