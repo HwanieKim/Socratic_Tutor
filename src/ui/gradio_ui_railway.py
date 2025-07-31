@@ -247,7 +247,7 @@ def create_gradio_interface():
                 scale=1
 
             )
-            gr.Markdown("",scale=3)
+            gr.Markdown("")
         # --- Main Application Container (Initially Hidden) ---
         with gr.Column(visible=True) as main_app_container:
             app_title = gr.Markdown(get_ui_text('app_title', 'en'))
