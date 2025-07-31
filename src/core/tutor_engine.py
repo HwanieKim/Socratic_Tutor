@@ -58,8 +58,8 @@ class TutorEngine:
         self._is_engine_ready = False
         self._lock = asyncio.Lock()
      
-        # Configure global LlamaIndex settings
-        self._configure_global_settings()
+        # # Configure global LlamaIndex settings
+        # self._configure_global_settings()
 
         print(f"✅ TutorEngine for session {self.session_id} initialized (lightweight). Engine will load on first use.")
     
@@ -69,8 +69,10 @@ class TutorEngine:
                 return
             print("Engine not ready. Performing first-time setup...")
 
-        #try to load index
-        try:
+
+            try:
+                self._configure_global_settings()
+            
                 active_index = self.db_manager.get_active_index(self.session_id)
                 if active_index and os.path.exists(active_index['index_path']):
                     self.index = await self._load_index_from_path_async(active_index['index_path'])
@@ -81,18 +83,20 @@ class TutorEngine:
                 else:
                     self.index = None
                     print("⚠️ No user or default index found.")
+ 
+                # initialize modules iff index is successfully loaded
+                if self.index is not None:
+                    self._initialize_modules()
+                    self._is_engine_ready = True
+                    print("✅ Engine is now fully loaded and ready.")
+                else:
+                    print("⚠️ Engine setup failed: No index available.")
+                    self._is_engine_ready = False 
 
-        except Exception as e:
-                print(f"Could not load any index: {e}")
-                self.index = None
-        # initialize modules iff index is successfully loaded
-        if self.index is not None:
-                self._initialize_modules()
-                self._is_engine_ready = True
-                print("✅ Engine is now fully loaded and ready.")
-        else:
-                print("⚠️ Engine setup failed: No index available.")
-                self._is_engine_ready = False 
+            except Exception as e:
+                print(f"❌ Critical error during engine setup: {e}")
+                traceback.print_exc()
+                self._is_engine_ready = False
                 
     # def _try_load_user_index(self):
     #     """Try to load user-specific index"""
@@ -200,7 +204,7 @@ class TutorEngine:
 
         await self._ensure_engine_ready()
 
-        if not self._is_engine_ready():
+        if not self._is_engine_ready:
             return "Tutor Engine is not ready. please ensure an index has been created and loaded succefully"
         try:
             # Input validation (from original implementation)
@@ -670,6 +674,8 @@ class TutorEngine:
             if not os.path.exists(index_info['index_path']):
                 return "❌ Index path does not exist"
             
+            await self._ensure_engine_ready()
+
             self.index = await self._load_index_from_path_async(index_info['index_path'])
             self._initialize_modules()
             return f"✅ Loaded index from {index_info['index_path']}"
