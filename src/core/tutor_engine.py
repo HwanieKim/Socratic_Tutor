@@ -54,50 +54,71 @@ class TutorEngine:
         self.session_id = session_id or str(uuid.uuid4())
         self.db_manager = DatabaseManager()
         
-        # Create or get user
-        self.user = self.db_manager.create_or_get_user(self.session_id)
-        
-        # Check for existing user index first
-        self._try_load_user_index()
-        
-        # If no user index, try to load default index
-        if not hasattr(self, 'index') or self.index is None:
-            self._try_load_default_index()
-        
+        self.index: Optional[StorageContext] = None
+        self._is_engine_ready = False
+        self._lock = asyncio.Lock()
+     
         # Configure global LlamaIndex settings
         self._configure_global_settings()
-        
-        # Initialize specialized modules only if we have an index
-        if hasattr(self, 'index') and self.index is not None:
-            self._initialize_modules()
+
+        print(f"✅ TutorEngine for session {self.session_id} initialized (lightweight). Engine will load on first use.")
+    
+    async def _ensure_engine_ready(self):
+        async with self._lock:
+            if self._is_engine_ready:
+                return
+            print("Engine not ready. Performing first-time setup...")
+
+        #try to load index
+        try:
+                active_index = self.db_manager.get_active_index(self.session_id)
+                if active_index and os.path.exists(active_index['index_path']):
+                    self.index = await self._load_index_from_path_async(active_index['index_path'])
+                    print(f"✅ Loaded user index with {active_index['document_count']} documents")
+                elif os.path.exists(config.PERSISTENCE_DIR):
+                    self.index = await self._load_index_from_path_async(config.PERSISTENCE_DIR)
+                    print("✅ Loaded default index as fallback")
+                else:
+                    self.index = None
+                    print("⚠️ No user or default index found.")
+
+        except Exception as e:
+                print(f"Could not load any index: {e}")
+                self.index = None
+        # initialize modules iff index is successfully loaded
+        if self.index is not None:
+                self._initialize_modules()
+                self._is_engine_ready = True
+                print("✅ Engine is now fully loaded and ready.")
         else:
-            print("⚠️ No index available. Upload documents and create index to start tutoring.")
+                print("⚠️ Engine setup failed: No index available.")
+                self._is_engine_ready = False 
+                
+    # def _try_load_user_index(self):
+    #     """Try to load user-specific index"""
+    #     try:
+    #         active_index = self.db_manager.get_active_index(self.session_id)
+    #         if active_index and os.path.exists(active_index['index_path']):
+    #             self.index = self._load_index_from_path_sync(active_index['index_path'])
+    #             print(f"✅ Loaded user index with {active_index['document_count']} documents")
+    #         else:
+    #             self.index = None
+    #     except Exception as e:
+    #         print(f"Could not load user index: {e}")
+    #         self.index = None
     
-    def _try_load_user_index(self):
-        """Try to load user-specific index"""
-        try:
-            active_index = self.db_manager.get_active_index(self.session_id)
-            if active_index and os.path.exists(active_index['index_path']):
-                self.index = self._load_index_from_path_sync(active_index['index_path'])
-                print(f"✅ Loaded user index with {active_index['document_count']} documents")
-            else:
-                self.index = None
-        except Exception as e:
-            print(f"Could not load user index: {e}")
-            self.index = None
-    
-    def _try_load_default_index(self):
-        """Try to load default index as fallback"""
-        try:
-            if os.path.exists(config.PERSISTENCE_DIR):
-                self.index = self._load_index_from_path_sync(config.PERSISTENCE_DIR)
-                print("✅ Loaded default index")
-            else:
-                self.index = None
-                print("ℹ️ No default index found")
-        except Exception as e:
-            print(f"Could not load default index: {e}")
-            self.index = None
+    # def _try_load_default_index(self):
+    #     """Try to load default index as fallback"""
+    #     try:
+    #         if os.path.exists(config.PERSISTENCE_DIR):
+    #             self.index = self._load_index_from_path_sync(config.PERSISTENCE_DIR)
+    #             print("✅ Loaded default index")
+    #         else:
+    #             self.index = None
+    #             print("ℹ️ No default index found")
+    #     except Exception as e:
+    #         print(f"Could not load default index: {e}")
+    #         self.index = None
     
     def _initialize_modules(self):
         """Initialize specialized modules"""
@@ -163,7 +184,7 @@ class TutorEngine:
             traceback.print_exc()
             raise
     
-    def get_guidance(self, user_question: str) -> str:
+    async def get_guidance(self, user_question: str) -> str:
         """
         Main entry point for getting tutoring guidance
         
@@ -176,6 +197,11 @@ class TutorEngine:
         Returns:
             str: Tutor's response
         """
+
+        await self._ensure_engine_ready()
+
+        if not self._is_engine_ready():
+            return "Tutor Engine is not ready. please ensure an index has been created and loaded succefully"
         try:
             # Input validation (from original implementation)
             if not user_question or not user_question.strip():
@@ -490,7 +516,8 @@ class TutorEngine:
             
             if not doc_to_index:
                 yield "All uploaded documents are already part of an index. Nothing to do."
-
+                return
+            
             # Prepare file paths for index creation
             file_paths = [doc['file_path'] for doc in doc_to_index]
             file_hashes = [doc['file_hash'] for doc in doc_to_index]
@@ -516,6 +543,7 @@ class TutorEngine:
             
             yield "Initializing modules..."
             self._initialize_modules()
+            self._is_engine_ready = True
 
             yield f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
            
@@ -581,7 +609,7 @@ class TutorEngine:
         Returns:
             bool: True if engine has index and modules initialized
         """
-        return hasattr(self, 'index') and self.index is not None and hasattr(self, 'rag_retriever')
+        return self.index is not None and self._is_engine_ready
 
     def find_matching_index(self, file_hashes: list[str]) -> Optional[Dict]:
         """Find the best matching index for the current session
@@ -608,7 +636,7 @@ class TutorEngine:
                 index_hashes = set(json.loads(index_info['file_hashes']))
             except (json.JSONDecodeError, TypeError):
                 index_hashes = set(index_info['file_hashes'])  # Fallback for legacy format
-                
+
             # exact match
             if current_hashes == index_hashes:
                 print(f"Exact match found: {index_info['index_path']}")
