@@ -232,32 +232,32 @@ def create_gradio_interface():
         uploaded_files_state = gr.State([])
         matched_index_id = gr.State(value=None)
 
-        # --- language selector ---
-        with gr.Row():
-            with gr.Column(scale = 10):
-                app_title = gr.Markdown(get_ui_text('app_title', 'en'))
-                app_header = gr.Markdown(get_ui_text('app_header', 'en'))
-
-            with gr.Column(scale=2, min_width=180):
-                language_choices = [
-                    (data['language_name'], lang) for lang, data in UI_TEXTS.items()
-                ]
-                language_dropdown = gr.Dropdown(
-                    choices=language_choices,
-                    value="en",
-                    label="language",
-                    interactive=True,
-                    scale=1
-
-                )
         # --- Main Application Container (Initially Hidden) ---
         with gr.Column(visible=True) as main_app_container:
+        # --- language selector ---
+            with gr.Row():
+                with gr.Column(scale = 10):
+                    app_title = gr.Markdown(get_ui_text('app_title', 'en'))
+                    app_header = gr.Markdown(get_ui_text('app_header', 'en'))
+
+                with gr.Column(scale=2, min_width=180):
+                    language_choices = [
+                        (data['language_name'], lang) for lang, data in UI_TEXTS.items()
+                    ]
+                    language_dropdown = gr.Dropdown(
+                        choices=language_choices,
+                        value="en",
+                        label="language",
+                        interactive=True,
+                        scale=1
+
+                    )
             with gr.Row():
                 with gr.Column(scale=1):
                     session_header = gr.Markdown(get_ui_text('session_header','en'))
                     with gr.Row():
                         new_session_btn = gr.Button(get_ui_text('new_session_btn','en'), variant="secondary")
-                        session_status_btn = gr.Button(get_ui_text('session_status_btn','en'), variant="secondary")
+                        session_status_btn = gr.Button(get_ui_text('refresh_status','en'), variant="secondary")
                     session_info_display = gr.Textbox(label= get_ui_text('session_status_label','en'), interactive=False, lines=4)
 
                     upload_header = gr.Markdown(get_ui_text('upload_header','en'))
