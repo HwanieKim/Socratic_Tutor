@@ -189,20 +189,7 @@ def create_gradio_interface():
     
     # This CSS is the core of the manual modal implementation.
     css = """
-    #app_title h1 {
-        font-size: 2.2em;
-        font-weight: 600;
-        margin-bottom: 0rem;
-    }
-     #app_header p {
-        font-size: 1.1em;
-        color: #A0AEC0;
-        margin-top: 0.5rem;
-    }
-    #top_bar_row {
-        align-items: flex-start; 
-        gap: 1rem;
-    }
+
     #popup_modal_container {
         position: fixed !important; top: 0; left: 0; width: 100%; height: 100%;
         background-color: rgba(0, 0, 0, 0.75);
@@ -249,29 +236,31 @@ def create_gradio_interface():
         # --- Main Application Container (Initially Hidden) ---
         with gr.Column(visible=True) as main_app_container:
         # --- language selector ---
-            with gr.Row():
-                with gr.Column(scale = 10):
-                    app_title = gr.Markdown(get_ui_text('app_title', 'en'),elem_id="app_title")
-                    app_header = gr.Markdown(get_ui_text('app_header', 'en'), elem_id="app_header")
-
-                with gr.Column(scale=2, min_width=180):
-                    language_choices = [
-                        (data['language_name'], lang) for lang, data in UI_TEXTS.items()
-                    ]
-                    language_dropdown = gr.Dropdown(
-                        choices=language_choices,
-                        value="en",
-                        label="language",
-                        interactive=True,
-                        scale=1
-
-                    )
+           
+            app_title = gr.Markdown(get_ui_text('app_title', 'en'),elem_id="app_title")
+            app_header = gr.Markdown(get_ui_text('app_header', 'en'), elem_id="app_header")
+            
+                    
             with gr.Row():
                 with gr.Column(scale=1):
                     session_header = gr.Markdown(get_ui_text('session_header','en'))
                     with gr.Row():
                         new_session_btn = gr.Button(get_ui_text('new_session_btn','en'), variant="secondary")
                         session_status_btn = gr.Button(get_ui_text('refresh_status_btn','en'), variant="secondary")
+                        
+                        language_choices = [
+                        (data['language_name'], lang) for lang, data in UI_TEXTS.items()
+                        ]
+
+                        language_dropdown = gr.Dropdown(
+                        choices=language_choices,
+                        value="en",
+                        label="language",
+                        interactive=True,
+                        container=False,
+                        scale=1
+                        )
+                        
                     session_info_display = gr.Textbox(label= get_ui_text('session_status_label','en'), interactive=False, lines=4)
 
                     upload_header = gr.Markdown(get_ui_text('upload_header','en'))
