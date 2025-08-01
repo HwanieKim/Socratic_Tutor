@@ -421,9 +421,6 @@ def create_gradio_interface():
                     session_info_display = gr.Textbox(label= get_ui_text('session_status_label','en'), interactive=False, lines=4)
                     
                     # Enhanced status displays for step progress with better messaging
-                    status_display = gr.Markdown(get_ui_text("tutorial_step1_title", "en") + ": " + get_ui_text("tutorial_step1_desc", "en"))
-                    progress_display = gr.Markdown(get_ui_text("progress_waiting_upload", "en"))
-
                     upload_header = gr.Markdown(f"### {get_ui_text('upload_header','en')}")
                     file_upload = gr.Files(file_types=[".pdf"], file_count="multiple", label=get_ui_text('file_upload_label','en'))
                     upload_status = gr.Textbox(label=get_ui_text('upload_status_label','en'), interactive=False, lines=3)
@@ -459,21 +456,21 @@ def create_gradio_interface():
                 with gr.Column(visible=True) as step_1_container:
                     modal_step1_header = gr.Markdown(f"{get_ui_text('modal_step1_header', 'en')}")
                     modal_step1_subheader = gr.Markdown(f"{get_ui_text('modal_step1_subheader', 'en')}")
-                    gr.Image(value="/assets/upload.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="assets/upload.png", interactive=False, show_download_button=False, show_label=False)
                     modal_step1_info = gr.Markdown(get_ui_text('modal_step1_info', 'en'))
                     modal_step1_success_header = gr.Markdown(f"{get_ui_text('modal_step1_success_header', 'en')}")
-                    gr.Image(value="/assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_2_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
 
                 # Step 2: Index Creation
                 with gr.Column(visible=False) as step_2_container:
                     modal_step2_header = gr.Markdown(f"{get_ui_text('modal_step2_header', 'en')}")
                     modal_step2_subheader = gr.Markdown(get_ui_text('modal_step2_subheader', 'en'))
-                    gr.Image(value="/assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
 
                     modal_step2_detail = gr.Markdown(get_ui_text('modal_step2_detail', 'en'))
-                    gr.Image(value="/assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
-                    gr.Image(value="/assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_3_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
                 
                 # Step 3: Start Tutoring
