@@ -634,6 +634,10 @@ def create_gradio_interface():
             fn=check_and_update_ui_state,
             inputs=[language_state],
             outputs=[user_input, status_display, progress_display]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
         )
 
         send_btn.click(

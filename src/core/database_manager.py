@@ -223,7 +223,17 @@ class DatabaseManager:
                         INSERT INTO document_indexes 
                         (user_session_id, index_path, document_count, file_hashes)
                         VALUES (%s, %s, %s, %s)
+                        RETURNING id
                     """, (session_id, index_path, doc_count, json.dumps(file_hashes)))
+                    
+                    index_id = cur.fetchone()['id']
+                    
+                    # 새로 생성된 인덱스를 활성 인덱스로 설정
+                    cur.execute("""
+                        UPDATE document_indexes
+                        SET is_active = true
+                        WHERE id = %s
+                    """, (index_id,))
                     
                     conn.commit()
                     logger.info(f"Marked {doc_count} documents as indexed for session {session_id}")
@@ -362,3 +372,27 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Index retrieval by file hash failed: {e}")
             return []
+    
+    def set_active_index(self, session_id: str, index_id: int):
+        """특정 인덱스를 활성 인덱스로 설정"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # 먼저, 해당 세션의 다른 인덱스 비활성화
+                    cur.execute("""
+                        UPDATE document_indexes
+                        SET is_active = false
+                        WHERE user_session_id = %s
+                    """, (session_id,))
+                    
+                    # 그런 다음, 선택한 인덱스를 활성화하고 세션에 할당
+                    cur.execute("""
+                        UPDATE document_indexes
+                        SET is_active = true, user_session_id = %s
+                        WHERE id = %s
+                    """, (session_id, index_id))
+                    conn.commit()
+                    logger.info(f"Set index {index_id} as active for session {session_id}")
+        except Exception as e:
+            logger.error(f"Failed to set active index: {e}")
+            raise

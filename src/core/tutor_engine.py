@@ -600,7 +600,6 @@ class TutorEngine:
             
             return {
                 'session_id': self.session_id,
-                'user_created': self.user.get('created_at'),
                 'documents_count': len(documents),
                 'indexed_documents': len([d for d in documents if d['indexed']]),
                 'has_active_index': active_index is not None,
@@ -638,24 +637,37 @@ class TutorEngine:
         return self.index is not None and self._is_engine_ready
     
     def get_tutoring_status(self) -> Dict[str, any]:
-        """Get detailed status of tutoring readiness
-        
-        Returns:
-            Dict containing step completion status
-        """
+        """Get detailed status of tutoring readiness, prioritizing engine state."""
         try:
+            # The primary indicator of readiness is a fully loaded engine.
+            if self._is_engine_ready and self.index is not None:
+                active_index_info = self.db_manager.get_active_index(self.session_id)
+                doc_count = active_index_info.get('document_count', 0) if active_index_info else 0
+                
+                return {
+                    'step1_upload_complete': True,
+                    'step2_index_complete': True,
+                    'ready_for_tutoring': True,
+                    'documents_count': doc_count,
+                    'indexed_count': doc_count,
+                    'engine_ready': True,
+                    'has_index': True
+                }
+
+            # Fallback to DB check if engine isn't ready yet
             documents = self.get_user_documents()
             has_documents = len(documents) > 0
-            has_indexed_docs = len([d for d in documents if d['indexed']]) > 0
+            indexed_doc_count = len([d for d in documents if d['indexed']])
+            has_indexed_docs = indexed_doc_count > 0
             
             return {
                 'step1_upload_complete': has_documents,
-                'step2_index_complete': has_indexed_docs and self._is_engine_ready,
-                'ready_for_tutoring': self.is_ready_for_tutoring(),
+                'step2_index_complete': has_indexed_docs,
+                'ready_for_tutoring': False, # Engine is not ready at this point
                 'documents_count': len(documents),
-                'indexed_count': len([d for d in documents if d['indexed']]),
-                'engine_ready': self._is_engine_ready,
-                'has_index': self.index is not None
+                'indexed_count': indexed_doc_count,
+                'engine_ready': False,
+                'has_index': False
             }
         except Exception as e:
             print(f"Error getting tutoring status: {e}")
@@ -719,27 +731,37 @@ class TutorEngine:
 
 
     async def load_existing_index(self, index_id: int) -> str:
-        """Load an existing index by ID
-        
-        Args:
-            index_id: ID of the index to load
-            
-        Returns:
-            str: Status message
-        """
+        """Load an existing index by ID and prepares the engine for tutoring."""
         try:
             index_info = self.db_manager.get_index_by_id(index_id)
             if not index_info:
                 return get_ui_text("engine_index_not_found", self.language)
-            if not os.path.exists(index_info['index_path']):
+            
+            index_path = index_info['index_path']
+            if not os.path.exists(index_path):
                 return get_ui_text("engine_index_path_missing", self.language)
             
-            await self._ensure_engine_ready()
-
-            self.index = await self._load_index_from_path_async(index_info['index_path'])
+            # Load the index into memory
+            self.index = await self._load_index_from_path_async(index_path)
+            
+            # Initialize all modules that depend on the index
             self._initialize_modules()
-            return f"✅ Loaded index from {index_info['index_path']}"
+            
+            # Set the engine as ready
+            self._is_engine_ready = True
+            
+            # Update database to make this index active for the current session
+            self.db_manager.set_active_index(self.session_id, index_id)
+            
+            print(f"✅ Successfully loaded index ID {index_id} and set as active for session {self.session_id}")
+            
+            doc_count = index_info.get('document_count', 'N/A')
+            return f"✅ Loaded index with {doc_count} documents. Ready for tutoring!"
+            
         except Exception as e:
+            self._is_engine_ready = False
+            print(f"❌ Failed to load existing index: {e}")
+            traceback.print_exc()
             return f"❌ Failed to load index: {str(e)}"
 
 # Legacy method aliases for backward compatibility
