@@ -510,9 +510,9 @@ def create_gradio_interface():
                 clear_btn: gr.update(value=get_ui_text('clear_btn', lang)),
                 # --- Modal Text Updates ---
                 modal_step1_header: gr.update(value=f"## {get_ui_text('modal_step1_header', lang)}"),
-                modal_step1_subheader: gr.update(value=f"### {get_ui_text('modal_step1_subheader', lang)}"),
+                modal_step1_subheader: gr.update(value=f" {get_ui_text('modal_step1_subheader', lang)}"),
                 modal_step1_info: gr.update(value=get_ui_text('modal_step1_info', lang)),
-                modal_step1_success_header: gr.update(value=f"### {get_ui_text('modal_step1_success_header', lang)}"),
+                modal_step1_success_header: gr.update(value=f" {get_ui_text('modal_step1_success_header', lang)}"),
                 next_to_step_2_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
                 modal_step2_header: gr.update(value=f"## {get_ui_text('modal_step2_header', lang)}"),
                 modal_step2_subheader: gr.update(value=get_ui_text('modal_step2_subheader', lang)),
@@ -713,15 +713,6 @@ def main():
     interface = create_gradio_interface()
     app = FastAPI(lifespan=lifespan)
 
-    
-    assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
-
-    if os.path.exists(assets_path):
-        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
-    else:
-        print(f"Warning: Assets directory not found at {assets_path}")
-
-    # --- End of new code ---
 
     @app.get("/health")
     def health_check():
