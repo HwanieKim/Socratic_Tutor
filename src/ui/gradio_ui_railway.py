@@ -20,6 +20,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Response
+from fastapi.staticfiles import StaticFiles
 from requests import session
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -458,21 +459,21 @@ def create_gradio_interface():
                 with gr.Column(visible=True) as step_1_container:
                     modal_step1_header = gr.Markdown(f"## {get_ui_text('modal_step1_header', 'en')}")
                     modal_step1_subheader = gr.Markdown(f"### {get_ui_text('modal_step1_subheader', 'en')}")
-                    gr.Image(value="assets/upload.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/upload.png", interactive=False, show_download_button=False, show_label=False)
                     modal_step1_info = gr.Markdown(get_ui_text('modal_step1_info', 'en'))
                     modal_step1_success_header = gr.Markdown(f"### {get_ui_text('modal_step1_success_header', 'en')}")
-                    gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_2_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
 
                 # Step 2: Index Creation
                 with gr.Column(visible=False) as step_2_container:
                     modal_step2_header = gr.Markdown(f"## {get_ui_text('modal_step2_header', 'en')}")
                     modal_step2_subheader = gr.Markdown(get_ui_text('modal_step2_subheader', 'en'))
-                    gr.Image(value="assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
 
                     modal_step2_detail = gr.Markdown(get_ui_text('modal_step2_detail', 'en'))
-                    gr.Image(value="assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
-                    gr.Image(value="assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_3_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
                 
                 # Step 3: Start Tutoring
@@ -715,6 +716,14 @@ def main():
     
     interface = create_gradio_interface()
     app = FastAPI(lifespan=lifespan)
+
+    # --- Static file handling ---
+    assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+    else:
+        print(f"Warning: Assets directory not found at {assets_path}")
+    # --- End of new code ---
 
     @app.get("/health")
     def health_check():
