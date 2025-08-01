@@ -717,12 +717,13 @@ def main():
     interface = create_gradio_interface()
     app = FastAPI(lifespan=lifespan)
 
-    # --- Static file handling ---
-    static_path = os.path.join(os.path.dirname(__file__), "..", "..", "static")
-    if os.path.exists(static_path):
-        app.mount("/static", StaticFiles(directory=static_path), name="static")
+    
+    assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
+    
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
     else:
-        print(f"Warning: static directory not found at {static_path}")
+        print(f"Warning: assets directory not found at {assets_path}")
     # --- End of new code ---
 
     @app.get("/health")
