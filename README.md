@@ -92,13 +92,33 @@ python src/ui/gradio_ui_production.py
 
 The application will start on `http://127.0.0.1:7862`
 
-### 5. Initialize the System
+### 5. Initialize the System (Enhanced Step-by-Step Guide)
 
 1. Open your browser to `http://127.0.0.1:7862`
-2. **First Time Setup**:
-    - Click "1. Create Index" to process your PDF documents
-    - Wait for processing to complete (may take several minutes)
+
+2. **Step 1: Upload Documents** 📝
+
+    - The chat interface will be **disabled** until you complete this step
+    - Upload your PDF documents using the file upload area
+    - You'll see a status update when upload is successful
+    - Chat placeholder will show: _"Please complete Step 1: Upload your documents first"_
+
+3. **Step 2: Create Index** ⚙️
+
+    - After uploading, the "Create Index" button will appear
+    - Click it to process your documents (may take several minutes)
+    - Chat remains **disabled** with message: _"Please complete Step 2: Create index from your documents"_
+    - Wait for the "Index created successfully" message
+
+4. **Step 3: Start Tutoring** ✅
+    - Once both steps are complete, the chat interface will be **enabled**
+    - Chat placeholder changes to: _"Ready! Ask me anything about your documents..."_
+    - You can now ask questions and engage with your AI tutor
+
+> **Note**: The system enforces this step-by-step process to ensure proper setup. You cannot access the chat until both document upload and index creation are completed.
+
     - Click "2. Initialize Engine" to start the tutor
+
 3. **Subsequent Uses**:
     - If index exists, just click "2. Initialize Engine"
 4. Begin asking questions about your documents!

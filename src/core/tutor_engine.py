@@ -23,6 +23,7 @@ from llama_index.embeddings.voyageai import VoyageEmbedding
 from llama_index.llms.google_genai import GoogleGenAI
 
 from . import config
+from .i18n import get_ui_text
 from .models import ReasoningTriplet, AnswerEvaluation
 from .intent_classifier import IntentClassifier
 from .rag_retriever import RAGRetriever
@@ -42,16 +43,18 @@ class TutorEngine:
     Supports multi-user sessions with database integration.
     """
     
-    def __init__(self, session_id: str = None):
+    def __init__(self, session_id: str = None, language: str = "en"):
         """Initialize the tutor engine and all component modules
         
         Args:
             session_id: Unique session identifier. If None, generates a new one.
+            language: Language code for i18n messages (default: "en")
         """
         load_dotenv()
         
         # Session management
         self.session_id = session_id or str(uuid.uuid4())
+        self.language = language
         self.db_manager = DatabaseManager()
         
         self.index: Optional[StorageContext] = None
@@ -210,19 +213,30 @@ class TutorEngine:
             str: Tutor's response
         """
 
+        # Check if tutoring can start (both steps completed)
+        if not self.can_start_tutoring():
+            status = self.get_tutoring_status()
+            
+            if not status['step1_upload_complete']:
+                return get_ui_text("engine_upload_documents_first", self.language)
+            elif not status['step2_index_complete']:
+                return get_ui_text("engine_create_index_first", self.language)
+            else:
+                return get_ui_text("engine_system_not_ready", self.language)
+
         await self._ensure_engine_ready()
 
         if not self._is_engine_ready:
-            return "Tutor Engine is not ready. please ensure an index has been created and loaded succefully"
+            return get_ui_text("engine_index_not_loaded", self.language)
         try:
             # Input validation (from original implementation)
             if not user_question or not user_question.strip():
-                return "I'd be happy to help! Please ask me a question."
+                return get_ui_text("engine_happy_to_help", self.language)
             
             # Sanitize and validate input
             user_question = user_question.strip()
             if len(user_question) > 1000:  # Limit very long questions
-                return "Your question is quite long. Could you please break it down into smaller, more specific questions?"
+                return get_ui_text("engine_question_too_long", self.language)
             
             # Add user message to memory
             self.memory_manager.add_user_message(user_question)
@@ -251,12 +265,12 @@ class TutorEngine:
             # Handle specific error types more gracefully (from original implementation)
             if ("429" in error_msg or "quota" in error_msg or "rate" in error_msg 
                 or "503" in error_msg or "unavailable" in error_msg or "overloaded" in error_msg):
-                error_response = "I'm experiencing high demand right now, which may cause delays. Please wait a moment and try your question again."
+                error_response = get_ui_text("engine_high_demand", self.language)
             elif "network" in error_msg or "connection" in error_msg:
-                error_response = "I'm having trouble connecting. Please check your internet connection and try again."
+                error_response = get_ui_text("engine_connection_error", self.language)
             else:
                 print(f"--- UNEXPECTED ERROR IN ROUTER --- \n{e}\n---------------")
-                error_response = "An unexpected error occurred. Please try again."
+                error_response = get_ui_text("engine_unexpected_error", self.language)
                 
             self.memory_manager.add_assistant_message(error_response)
             return error_response
@@ -284,7 +298,7 @@ class TutorEngine:
             # Validate knowledge sufficiency
             if not self.rag_retriever.validate_knowledge_sufficiency(triplet):
                 self.memory_manager.clear_topic_cache()
-                return "I apologize, but I don't have sufficient information about this topic in my knowledge base. Could you try asking about something else, or provide more context?"
+                return get_ui_text("engine_insufficient_knowledge", self.language)
             
             # Cache the context for follow-up questions
             self.memory_manager.cache_topic_context(triplet, source_nodes)
@@ -301,7 +315,7 @@ class TutorEngine:
             
         except Exception as e:
             print(f"New question pipeline error: {e}")
-            return "I'm having trouble processing your question right now. Could you try rephrasing it?"
+            return get_ui_text("engine_processing_error", self.language)
     
     def _pipeline_follow_up(self, user_question: str) -> str:
         """
@@ -339,7 +353,7 @@ class TutorEngine:
                 
         except Exception as e:
             print(f"Follow-up pipeline error: {e}")
-            return "Let's continue our discussion. What would you like to explore about this topic?"
+            return get_ui_text("engine_follow_up_no_context", self.language)
     
     def _handle_student_answer(self, student_answer: str, triplet: ReasoningTriplet, source_nodes: list) -> str:
         """
@@ -392,7 +406,7 @@ class TutorEngine:
             
         except Exception as e:
             print(f"Student answer handling error: {e}")
-            return "That's an interesting response! Let's explore it further. What led you to that thinking?"
+            return get_ui_text("engine_interesting_response", self.language)
     
     def _handle_meta_question(self, triplet: ReasoningTriplet) -> str:
         """
@@ -426,7 +440,7 @@ class TutorEngine:
             
         except Exception as e:
             print(f"Meta question handling error: {e}")
-            return "I'm here to help! Let's think about this step by step. What aspect would you like to focus on first?"
+            return get_ui_text("engine_step_by_step", self.language)
     
     def reset(self):
         """Reset the entire tutoring session"""
@@ -468,7 +482,7 @@ class TutorEngine:
         """
         try:
             if not uploaded_files:
-                return "❌ No files provided"
+                return get_ui_text("engine_no_files", self.language)
             
             saved_files = []
             skipped_files = []
@@ -510,7 +524,7 @@ class TutorEngine:
             if skipped_files:
                 message_parts.append(f"ℹ️ Skipped {len(skipped_files)} documents that already exist in the database.")
             
-            return "\n".join(message_parts) if message_parts else "No new documents to save."
+            return "\n".join(message_parts) if message_parts else get_ui_text("engine_no_new_docs", self.language)
                 
         except Exception as e:
             return f"❌ Upload failed: {str(e)}"
@@ -622,6 +636,44 @@ class TutorEngine:
             bool: True if engine has index and modules initialized
         """
         return self.index is not None and self._is_engine_ready
+    
+    def get_tutoring_status(self) -> Dict[str, any]:
+        """Get detailed status of tutoring readiness
+        
+        Returns:
+            Dict containing step completion status
+        """
+        try:
+            documents = self.get_user_documents()
+            has_documents = len(documents) > 0
+            has_indexed_docs = len([d for d in documents if d['indexed']]) > 0
+            
+            return {
+                'step1_upload_complete': has_documents,
+                'step2_index_complete': has_indexed_docs and self._is_engine_ready,
+                'ready_for_tutoring': self.is_ready_for_tutoring(),
+                'documents_count': len(documents),
+                'indexed_count': len([d for d in documents if d['indexed']]),
+                'engine_ready': self._is_engine_ready,
+                'has_index': self.index is not None
+            }
+        except Exception as e:
+            print(f"Error getting tutoring status: {e}")
+            return {
+                'step1_upload_complete': False,
+                'step2_index_complete': False,
+                'ready_for_tutoring': False,
+                'documents_count': 0,
+                'indexed_count': 0,
+                'engine_ready': False,
+                'has_index': False,
+                'error': str(e)
+            }
+
+    def can_start_tutoring(self) -> bool:
+        """Check if tutoring can start (both steps completed)"""
+        status = self.get_tutoring_status()
+        return status['step1_upload_complete'] and status['step2_index_complete']
 
     def find_matching_index(self, file_hashes: list[str]) -> Optional[Dict]:
         """Find the best matching index for the current session
@@ -678,9 +730,9 @@ class TutorEngine:
         try:
             index_info = self.db_manager.get_index_by_id(index_id)
             if not index_info:
-                return "❌ Index not found"
+                return get_ui_text("engine_index_not_found", self.language)
             if not os.path.exists(index_info['index_path']):
-                return "❌ Index path does not exist"
+                return get_ui_text("engine_index_path_missing", self.language)
             
             await self._ensure_engine_ready()
 

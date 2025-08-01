@@ -32,23 +32,36 @@ from core.i18n import get_ui_text, UI_TEXTS
 user_sessions = {}
 current_session_id = None
 
-def get_or_create_session(session_id: str = None) -> TutorEngine:
+def get_or_create_session(session_id: str = None, lang: str = "en") -> TutorEngine:
+    """
+    Gets the TutorEngine for a given session_id.
+    If no session_id is provided, it returns the default engine instance.
+    If the session is not found, it creates a new one.
+    """
     global user_sessions, current_session_id
+    
     if session_id is None:
-        session_id = str(uuid.uuid4())
-        current_session_id = session_id
+        # If no session_id is provided, use the current global session_id
+        session_id = current_session_id
+        if session_id is None:
+            # If there's no global session_id, create a new one.
+            # This handles the very first interaction.
+            session_id = str(uuid.uuid4())
+            current_session_id = session_id
+
     if session_id not in user_sessions:
         try:
-            user_sessions[session_id] = TutorEngine(session_id=session_id)
-            print(f"Created new session: {session_id}")
+            print(f"Session {session_id} not found, creating new instance.")
+            user_sessions[session_id] = TutorEngine(session_id=session_id, language=lang)
         except Exception as e:
-            print(f"Error creating session: {e}")
+            print(f"Error creating session {session_id}: {e}")
             return None
-    return user_sessions[session_id]
+            
+    return user_sessions.get(session_id)
 
 # --- [MODIFIED] Backend Functions for Staged File Upload ---
 
-def handle_file_upload_staging(files,lang):
+def handle_file_upload_staging(files, lang='en'):
     """
     Handles file upload by staging them in a temporary state
     without saving them to the database immediately.
@@ -69,13 +82,15 @@ def handle_file_upload_staging(files,lang):
     matched_index = engine.find_matching_index(current_hashes)
 
     file_names = [os.path.basename(file.name) for file in files]
-    staged_msg = (
-        f"{len(files)} file(s) staged for upload: \n" +
-        "\n".join([f" - {name}" for name in file_names])
+    
+    # Use translated strings
+    staged_msg = get_ui_text('files_staged', lang).format(
+        count=len(files),
+        filenames='\n'.join([f" - {name}" for name in file_names])
     )
 
     if matched_index:
-        status_msg = f"{staged_msg}\n\n {get_ui_text('existing_index_found', lang)}"
+        status_msg = f"{staged_msg}\n\n{get_ui_text('existing_index_found', lang)}"
         return(
             status_msg,
             gr.update(visible=True),
@@ -84,7 +99,7 @@ def handle_file_upload_staging(files,lang):
             files
         )
     else:
-        status_msg = f"{staged_msg}\n\n {get_ui_text('no_index_found', lang)}"
+        status_msg = f"{staged_msg}\n\n{get_ui_text('no_index_found', lang)}"
         return (
             status_msg,
             gr.update(visible=False),
@@ -93,7 +108,7 @@ def handle_file_upload_staging(files,lang):
             files
         )
     
-async def save_and_create_index(staged_files):
+async def save_and_create_index(staged_files, lang='en'):
     """
     Saves the staged files to the database first,
     then creates an index from them. This is the user-confirmed action.
@@ -101,53 +116,54 @@ async def save_and_create_index(staged_files):
     global current_session_id
     
     if not staged_files:
-        yield "No files were staged. Please upload files first."
+        yield get_ui_text("no_files_staged_for_creation", lang)
         return
 
     try:
         engine = get_or_create_session(current_session_id)
         if not engine:
-            yield "No session available."
+            yield get_ui_text("session_error", lang)
             return
 
-        yield "Step 1/2: Saving files to permanent storage..."
+        yield get_ui_text("index_creation_step1", lang)
         # This is where files are actually saved to the DB
         upload_result = engine.upload_files(staged_files)
         yield upload_result
         
-        yield "\nStep 2/2: Creating index from saved files..."
+        yield f"\n{get_ui_text('index_creation_step2', lang)}"
         async for status_message in engine.create_user_index():
             yield status_message
 
     except Exception as e:
-        yield f"Index creation failed: {str(e)}"
+        yield f"{get_ui_text('index_creation_failed', lang)}: {str(e)}"
 
 
-def format_session_info(session_info: dict) -> str:
-    if 'error' in session_info: return f"Error: {session_info['error']}"
-    return "".join([
-        f"Session: {session_info['session_id'][:8]}...\n",
-        f"Documents: {session_info['documents_count']} uploaded, {session_info['indexed_documents']} indexed\n",
-        f"Engine: {'Ready' if session_info['engine_ready'] else 'Not Ready'}\n",
-        f"Created: {session_info.get('user_created', 'Unknown')}\n"
-    ])
-
-def get_session_status():
+def get_session_status(lang='en'):
     global current_session_id
-    if current_session_id is None: return "No active session. Upload files to start."
-    
-    
+    if current_session_id is None: 
+        return get_ui_text('no_active_session', lang)
     
     try:
         engine = user_sessions.get(current_session_id)
         if not engine: 
-            return "Session not found."
+            return get_ui_text('session_not_found', lang)
     
         session_info = engine.get_session_info()
-        return session_info
+        
+        # Format the session info using translated keys
+        if 'error' in session_info:
+            return f"{get_ui_text('error_prefix', lang)}: {session_info['error']}"
+
+        return "".join([
+            f"{get_ui_text('session_id_prefix', lang)}: {session_info['session_id'][:8]}...\n",
+            f"{get_ui_text('documents_prefix', lang)}: {session_info['documents_count']} {get_ui_text('documents_uploaded_suffix', lang)}, {session_info['indexed_documents']} {get_ui_text('documents_indexed_suffix', lang)}\n",
+            f"{get_ui_text('engine_status_prefix', lang)}: {get_ui_text('engine_ready', lang) if session_info['engine_ready'] else get_ui_text('engine_not_ready', lang)}\n",
+            f"{get_ui_text('created_at_prefix', lang)}: {session_info.get('user_created', get_ui_text('unknown', lang))}\n"
+        ])
     except Exception as e:
         print(f"Error retrieving session status: {e}")
-        return "Error retrieving session status."
+        return get_ui_text('session_status_error', lang)
+
 def get_tutor_response(user_input, conversation_history, lang):
     global current_session_id
     if not user_input.strip(): return conversation_history, ""
@@ -155,31 +171,171 @@ def get_tutor_response(user_input, conversation_history, lang):
     conversation_history.append({"role": "user", "content": user_input})
     
     engine = get_or_create_session(current_session_id)
-    if not engine or not engine.is_ready_for_tutoring():
-        error_msg = get_ui_text("engine_not_ready", lang)
+    if not engine:
+        error_msg = get_ui_text("session_error", lang)
         conversation_history.append({"role": "assistant", "content": error_msg})
         return conversation_history, ""
     
-    # Get tutor's response based on user input
-    response = engine.get_guidance(user_input)
-    engine.save_conversation(user_input, response)
-    conversation_history.append({"role": "assistant", "content": response})
-    return conversation_history, ""
+    # Enhanced step validation with detailed messages
+    if not engine.can_start_tutoring():
+        status = engine.get_tutoring_status()
+        
+        if not status['step1_upload_complete']:
+            error_msg = get_ui_text("upload_documents_first", lang)
+            additional_info = "\n\n💡 " + get_ui_text("tutorial_step1_desc", lang)
+            error_msg += additional_info
+        elif not status['step2_index_complete']:
+            error_msg = get_ui_text("create_index_first", lang)
+            additional_info = "\n\n💡 " + get_ui_text("tutorial_step2_desc", lang)
+            error_msg += additional_info
+        else:
+            error_msg = get_ui_text("system_not_ready", lang)
+        
+        conversation_history.append({"role": "assistant", "content": error_msg})
+        return conversation_history, ""
+    
+    try:
+        # Get tutor's response based on user input
+        response = asyncio.run(engine.get_guidance(user_input))
+        engine.save_conversation(user_input, response)
+        conversation_history.append({"role": "assistant", "content": response})
+        return conversation_history, ""
+    except Exception as e:
+        error_msg = f"{get_ui_text('chat_error', lang)}: {str(e)}"
+        conversation_history.append({"role": "assistant", "content": error_msg})
+        return conversation_history, ""
 
-def new_session():
-    global current_session_id
-    current_session_id = str(uuid.uuid4())
-    return [], f"New session created: {current_session_id[:8]}...", "", ""
+def new_session(lang='en'):
+    """
+    Creates a new user session by generating a new UUID,
+    and creating a new TutorEngine instance for it.
+    """
+    global current_session_id, user_sessions
+    
+    new_session_id = str(uuid.uuid4())
+    current_session_id = new_session_id
+    
+    # Eagerly create the new TutorEngine instance
+    user_sessions[new_session_id] = TutorEngine(session_id=new_session_id)
+    print(f"Eagerly created new session and engine for: {new_session_id}")
 
-def reset_conversation():
+    session_created_msg = get_ui_text('session_created', lang).format(session_id=new_session_id[:8])
+    return [], session_created_msg, "", ""
+
+def reset_conversation(lang='en'):
     engine = get_or_create_session(current_session_id)
     if engine: engine.reset()
-    return [], "Conversation reset successfully!"
+    return [], get_ui_text('conversation_reset', lang)
 
-async def handle_load_index_click(index_id):
+def update_chat_availability(lang='en'):
+    """Update chat input availability based on tutoring readiness"""
+    global current_session_id
+    
+    if not current_session_id:
+        return gr.update(
+            interactive=False, 
+            placeholder=get_ui_text("chat_disabled_step1", lang)
+        )
+    
     engine = get_or_create_session(current_session_id)
-    if not index_id or not engine: return "Error."
-    return await engine.load_existing_index(index_id)
+    if not engine:
+        return gr.update(
+            interactive=False, 
+            placeholder=get_ui_text("session_error", lang)
+        )
+    
+    status = engine.get_tutoring_status()
+    
+    if not status['step1_upload_complete']:
+        return gr.update(
+            interactive=False, 
+            placeholder=get_ui_text("chat_disabled_step1", lang)
+        )
+    elif not status['step2_index_complete']:
+        return gr.update(
+            interactive=False, 
+            placeholder=get_ui_text("chat_disabled_step2", lang)
+        )
+    else:
+        return gr.update(
+            interactive=True, 
+            placeholder=get_ui_text("chat_enabled_ready", lang)
+        )
+
+def check_and_update_ui_state(lang='en'):
+    """Check current state and return UI updates"""
+    global current_session_id
+    
+    engine = get_or_create_session(current_session_id)
+    status = engine.get_tutoring_status() if engine else {}
+    
+    # Chat input update
+    chat_update = update_chat_availability(lang)
+    
+    # Status message and progress with enhanced messaging
+    if not status.get('step1_upload_complete', False):
+        status_msg = get_ui_text("tutorial_step1_title", lang) + ": " + get_ui_text("tutorial_step1_desc", lang)
+        progress = get_ui_text("progress_waiting_upload", lang)
+    elif not status.get('step2_index_complete', False):
+        count = status.get('documents_count', 0)
+        status_msg = get_ui_text("tutorial_step2_title", lang) + f": {count} " + get_ui_text("documents_uploaded_suffix", lang)
+        progress = get_ui_text("progress_waiting_index", lang)
+    else:
+        count = status.get('indexed_count', 0)
+        status_msg = get_ui_text("tutorial_step3_title", lang) + f": {count} " + get_ui_text("documents_indexed_suffix", lang)
+        progress = get_ui_text("progress_all_complete", lang)
+    
+    return chat_update, status_msg, progress
+
+def get_tutorial_message(step: int, lang='en') -> str:
+    """Get tutorial message for current step"""
+    if step == 1:
+        return f"🚀 {get_ui_text('tutorial_step1_title', lang)}\n\n{get_ui_text('tutorial_step1_desc', lang)}"
+    elif step == 2:
+        return f"⚙️ {get_ui_text('tutorial_step2_title', lang)}\n\n{get_ui_text('tutorial_step2_desc', lang)}"
+    else:
+        return f"✅ {get_ui_text('tutorial_step3_title', lang)}\n\n{get_ui_text('tutorial_step3_desc', lang)}"
+
+def get_step_from_status(status: dict) -> int:
+    """Determine current step from engine status"""
+    if not status.get('step1_upload_complete', False):
+        return 1
+    elif not status.get('step2_index_complete', False):
+        return 2
+    else:
+        return 3
+
+def is_chat_blocked(lang='en') -> tuple:
+    """Check if chat should be blocked and return status info"""
+    global current_session_id
+    
+    if not current_session_id:
+        return True, get_ui_text("chat_disabled_step1", lang), 1
+    
+    engine = get_or_create_session(current_session_id)
+    if not engine:
+        return True, get_ui_text("session_error", lang), 1
+    
+    status = engine.get_tutoring_status()
+    step = get_step_from_status(status)
+    
+    if step == 1:
+        return True, get_ui_text("chat_disabled_step1", lang), step
+    elif step == 2:
+        return True, get_ui_text("chat_disabled_step2", lang), step
+    else:
+        return False, get_ui_text("chat_enabled_ready", lang), step
+
+async def handle_load_index_click(index_id, lang='en'):
+    engine = get_or_create_session(current_session_id)
+    if not index_id or not engine: return get_ui_text('index_load_error', lang)
+    
+    # Use an async generator to yield status updates
+    status_updates = []
+    async for message in engine.load_existing_index(index_id):
+        status_updates.append(message)
+        # We return the final message, but you could also yield here if Gradio supported it directly
+    return "\n".join(status_updates)
 
 
 # --- [FINAL VERSION] Gradio Interface Creation ---
@@ -237,13 +393,13 @@ def create_gradio_interface():
         with gr.Column(visible=True) as main_app_container:
         # --- language selector ---
            
-            app_title = gr.Markdown(get_ui_text('app_title', 'en'),elem_id="app_title")
+            app_title = gr.Markdown(f"# {get_ui_text('app_title', 'en')}", elem_id="app_title")
             app_header = gr.Markdown(get_ui_text('app_header', 'en'), elem_id="app_header")
             
                     
             with gr.Row():
                 with gr.Column(scale=1):
-                    session_header = gr.Markdown(get_ui_text('session_header','en'))
+                    session_header = gr.Markdown(f"### {get_ui_text('session_header','en')}")
                     with gr.Row():
                         new_session_btn = gr.Button(get_ui_text('new_session_btn','en'), variant="secondary")
                         session_status_btn = gr.Button(get_ui_text('refresh_status_btn','en'), variant="secondary")
@@ -255,29 +411,39 @@ def create_gradio_interface():
                         language_dropdown = gr.Dropdown(
                         choices=language_choices,
                         value="en",
-                        label="language",
+                        label=get_ui_text('language_label', 'en'),
                         interactive=True,
                         container=False,
                         scale=1
                         )
                         
                     session_info_display = gr.Textbox(label= get_ui_text('session_status_label','en'), interactive=False, lines=4)
+                    
+                    # Enhanced status displays for step progress with better messaging
+                    status_display = gr.Markdown(get_ui_text("tutorial_step1_title", "en") + ": " + get_ui_text("tutorial_step1_desc", "en"))
+                    progress_display = gr.Markdown(get_ui_text("progress_waiting_upload", "en"))
 
-                    upload_header = gr.Markdown(get_ui_text('upload_header','en'))
+                    upload_header = gr.Markdown(f"### {get_ui_text('upload_header','en')}")
                     file_upload = gr.Files(file_types=[".pdf"], file_count="multiple", label=get_ui_text('file_upload_label','en'))
                     upload_status = gr.Textbox(label=get_ui_text('upload_status_label','en'), interactive=False, lines=3)
 
-                    setup_header =gr.Markdown(get_ui_text('setup_header','en'))
+                    setup_header =gr.Markdown(f"### {get_ui_text('setup_header','en')}")
                     load_index_btn = gr.Button(get_ui_text('load_index_btn','en'), variant="secondary", visible=False)
                     create_index_btn = gr.Button(get_ui_text('create_index_btn','en'), variant="primary", visible=False)
                     setup_status = gr.Textbox(label=get_ui_text('setup_status_label','en'), interactive=False, lines=4)
 
                 with gr.Column(scale=2):
-                    conversation_header = gr.Markdown(get_ui_text('conversation_header','en'))
+                    conversation_header = gr.Markdown(f"### {get_ui_text('conversation_header','en')}")
                     chat_disclaimer_md = gr.Markdown(f"*{get_ui_text('chat_disclaimer','en')}*")
                     chatbot = gr.Chatbot( height=600, show_label=False, type="messages")
                     with gr.Row():
-                        user_input = gr.Textbox(label=get_ui_text('ask_question_label','en'), placeholder=get_ui_text('user_input_placeholder','en'), lines=2, scale=4)
+                        user_input = gr.Textbox(
+                            label=get_ui_text('ask_question_label','en'), 
+                            placeholder=get_ui_text('chat_disabled_step1','en'), 
+                            lines=2, 
+                            scale=4,
+                            interactive=False  # Start disabled
+                        )
                         send_btn = gr.Button(get_ui_text('send_btn','en'), variant="primary", scale=1)
                     with gr.Row():
                         reset_btn = gr.Button(get_ui_text('reset_btn','en'), variant="secondary")
@@ -290,30 +456,30 @@ def create_gradio_interface():
 
                 # Step 1: File Upload
                 with gr.Column(visible=True) as step_1_container:
-                    gr.Markdown("##  Step 1: Upload Your Documents")
-                    gr.Markdown("### Drag & Drop or Click to Upload")
+                    modal_step1_header = gr.Markdown(f"## {get_ui_text('modal_step1_header', 'en')}")
+                    modal_step1_subheader = gr.Markdown(f"### {get_ui_text('modal_step1_subheader', 'en')}")
                     gr.Image(value="assets/upload.png", interactive=False, show_download_button=False, show_label=False)
-                    gr.Markdown("Once uploaded, you will see a status update like this:")
-                    gr.Markdown("### Upload Success")
+                    modal_step1_info = gr.Markdown(get_ui_text('modal_step1_info', 'en'))
+                    modal_step1_success_header = gr.Markdown(f"### {get_ui_text('modal_step1_success_header', 'en')}")
                     gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
-                    next_to_step_2_btn = gr.Button("Next Step", variant="primary")
+                    next_to_step_2_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
 
                 # Step 2: Index Creation
                 with gr.Column(visible=False) as step_2_container:
-                    gr.Markdown("## Step 2: Let the Socratic Tutor learn your documents")
-                    gr.Markdown("After successful uploading, click the 'Create New Index' button that appears.")  
+                    modal_step2_header = gr.Markdown(f"## {get_ui_text('modal_step2_header', 'en')}")
+                    modal_step2_subheader = gr.Markdown(get_ui_text('modal_step2_subheader', 'en'))
                     gr.Image(value="assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
 
-                    gr.Markdown("The process may take a few minutes depending on the document size. You will see a completion status when it's done.")
+                    modal_step2_detail = gr.Markdown(get_ui_text('modal_step2_detail', 'en'))
                     gr.Image(value="assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
                     gr.Image(value="assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
-                    next_to_step_3_btn = gr.Button("Next Step", variant="primary")
+                    next_to_step_3_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
                 
                 # Step 3: Start Tutoring
                 with gr.Column(visible=False) as step_3_container:
-                    gr.Markdown("## Step 3: Start Your Tutoring Session!")
-                    gr.Markdown("Everything is ready! Start asking questions in the chat window.")
-                    start_btn = gr.Button("Let's Get Started!", variant="primary")
+                    modal_step3_header = gr.Markdown(f"## {get_ui_text('modal_step3_header', 'en')}")
+                    modal_step3_subheader = gr.Markdown(get_ui_text('modal_step3_subheader', 'en'))
+                    start_btn = gr.Button(get_ui_text('modal_start_btn', 'en'), variant="primary")
 
         # --- Event Handlers & Connections ---
         
@@ -323,37 +489,59 @@ def create_gradio_interface():
                 language_state: lang,
                 app_title: gr.update(value=f"# {get_ui_text('app_title', lang)}"),
                 app_header: gr.update(value=get_ui_text('app_header', lang)),
-                session_header: gr.update(value=get_ui_text('session_header', lang)),
+                session_header: gr.update(value=f"### {get_ui_text('session_header', lang)}"),
                 new_session_btn: gr.update(value=get_ui_text('new_session_btn', lang)),
                 session_status_btn: gr.update(value=get_ui_text('refresh_status_btn', lang)),
+                language_dropdown: gr.update(label=get_ui_text('language_label', lang)),
                 session_info_display: gr.update(label=get_ui_text('session_status_label', lang)),
-                upload_header: gr.update(value=get_ui_text('upload_header', lang)),
+                upload_header: gr.update(value=f"### {get_ui_text('upload_header', lang)}"),
                 file_upload: gr.update(label=get_ui_text('file_upload_label', lang)),
                 upload_status: gr.update(label=get_ui_text('upload_status_label', lang)),
-                setup_header: gr.update(value=get_ui_text('setup_header', lang)),
+                setup_header: gr.update(value=f"### {get_ui_text('setup_header', lang)}"),
                 load_index_btn: gr.update(value=get_ui_text('load_index_btn', lang)),
                 create_index_btn: gr.update(value=get_ui_text('create_index_btn', lang)),
                 setup_status: gr.update(label=get_ui_text('setup_status_label', lang)),
-                conversation_header: gr.update(value=get_ui_text('conversation_header', lang)),
+                conversation_header: gr.update(value=f"### {get_ui_text('conversation_header', lang)}"),
                 chat_disclaimer_md: gr.update(value=f"*{get_ui_text('chat_disclaimer', lang)}*"),
-                user_input: gr.update(label=get_ui_text('ask_question_label', lang)),
+                user_input: gr.update(label=get_ui_text('ask_question_label', lang), placeholder=get_ui_text('user_input_placeholder', lang)),
                 send_btn: gr.update(value=get_ui_text('send_btn', lang)),
                 reset_btn: gr.update(value=get_ui_text('reset_btn', lang)),
                 clear_btn: gr.update(value=get_ui_text('clear_btn', lang)),
+                # --- Modal Text Updates ---
+                modal_step1_header: gr.update(value=f"## {get_ui_text('modal_step1_header', lang)}"),
+                modal_step1_subheader: gr.update(value=f"### {get_ui_text('modal_step1_subheader', lang)}"),
+                modal_step1_info: gr.update(value=get_ui_text('modal_step1_info', lang)),
+                modal_step1_success_header: gr.update(value=f"### {get_ui_text('modal_step1_success_header', lang)}"),
+                next_to_step_2_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
+                modal_step2_header: gr.update(value=f"## {get_ui_text('modal_step2_header', lang)}"),
+                modal_step2_subheader: gr.update(value=get_ui_text('modal_step2_subheader', lang)),
+                modal_step2_detail: gr.update(value=get_ui_text('modal_step2_detail', lang)),
+                next_to_step_3_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
+                modal_step3_header: gr.update(value=f"## {get_ui_text('modal_step3_header', lang)}"),
+                modal_step3_subheader: gr.update(value=get_ui_text('modal_step3_subheader', lang)),
+                start_btn: gr.update(value=get_ui_text('modal_start_btn', lang)),
             }
 
         all_ui_outputs = [
             language_state, app_title, app_header, session_header, new_session_btn,
-            session_status_btn, session_info_display, upload_header, file_upload,
-            upload_status, setup_header, load_index_btn, create_index_btn,
+            session_status_btn, language_dropdown, session_info_display, status_display, progress_display,
+            upload_header, file_upload, upload_status, setup_header, load_index_btn, create_index_btn,
             setup_status, conversation_header, chat_disclaimer_md, user_input,
-            send_btn, reset_btn, clear_btn
+            send_btn, reset_btn, clear_btn,
+            # --- Modal Outputs ---
+            modal_step1_header, modal_step1_subheader, modal_step1_info, modal_step1_success_header, next_to_step_2_btn,
+            modal_step2_header, modal_step2_subheader, modal_step2_detail, next_to_step_3_btn,
+            modal_step3_header, modal_step3_subheader, start_btn
         ]
 
         language_dropdown.change(
             fn=update_ui_language,
             inputs=[language_dropdown],
             outputs=all_ui_outputs
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_dropdown],
+            outputs=[user_input, status_display, progress_display]
         )
 
         # Modal/Popup control functions
@@ -404,7 +592,12 @@ def create_gradio_interface():
         # Main application event handlers
         new_session_btn.click(
             new_session,
+            inputs=[language_state],
             outputs=[chatbot, session_info_display, upload_status, setup_status]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
         )
 
         session_status_btn.click(
@@ -416,19 +609,31 @@ def create_gradio_interface():
             handle_file_upload_staging,
             inputs=[file_upload, language_state],
             outputs=[upload_status, load_index_btn, create_index_btn, matched_index_id, uploaded_files_state]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
         )
 
         create_index_btn.click(
             save_and_create_index,
-            inputs=[uploaded_files_state],
+            inputs=[uploaded_files_state, language_state],
             outputs=[setup_status]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
         )
 
 
         load_index_btn.click(
             handle_load_index_click,
-            inputs=[matched_index_id],
+            inputs=[matched_index_id, language_state],
             outputs=[setup_status]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
         )
 
         send_btn.click(
@@ -453,8 +658,23 @@ def create_gradio_interface():
             outputs=[chatbot, user_input]
         )
 
+        # Language change handler - updates UI state when language changes
+        language_dropdown.change(
+            fn=check_and_update_ui_state,
+            inputs=[language_dropdown],
+            outputs=[user_input, status_display, progress_display]
+        )
+
         # Load initial session status when the app loads. The popup will appear on top.
-        interface.load(fn=get_session_status, inputs=None, outputs=[session_info_display])
+        interface.load(
+            fn=get_session_status, 
+            inputs=None, 
+            outputs=[session_info_display]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
+        )
 
     return interface
 
@@ -471,16 +691,23 @@ def main():
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        default_session_id = "default_warmup_session"
-        engine = get_or_create_session(default_session_id)
+        # Eagerly initialize a default TutorEngine on startup
+        global current_session_id
+        default_session_id = str(uuid.uuid4())
+        current_session_id = default_session_id
         
-        if engine:
-            asyncio.create_task(engine.initialize_engine())
-        else:
-            print("⚠️ No engine instance created.")
+        print(f"Application starting up. Creating default session: {default_session_id}")
+        engine = TutorEngine(session_id=default_session_id)
+        user_sessions[default_session_id] = engine
+        
+        # Initialize the engine in the background
+        asyncio.create_task(engine.initialize_engine())
+        
         yield
-        # 애플리케이션 종료 시 실행될 코드 (필요 시 추가)
-        print("FastAPI lifespan shutdown.")
+        
+        # Clean up resources on shutdown
+        print("Application shutting down. Cleaning up sessions.")
+        user_sessions.clear()
     
     interface = create_gradio_interface()
     app = FastAPI(lifespan=lifespan)
@@ -489,7 +716,7 @@ def main():
     def health_check():
         return Response(status_code=200, content="OK")
 
-    app = gr.mount_gradio_app(app, interface, path="/app")
+    app = gr.mount_gradio_app(app, interface, path="/")
     port = int(os.getenv("PORT", 7860))
     
     print(f"Launching on 0.0.0.0:{port}")
