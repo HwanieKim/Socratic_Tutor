@@ -164,7 +164,7 @@ def get_session_status(lang='en'):
         print(f"Error retrieving session status: {e}")
         return get_ui_text('session_status_error', lang)
 
-def get_tutor_response(user_input, conversation_history, lang):
+async def get_tutor_response(user_input, conversation_history, lang):
     global current_session_id
     if not user_input.strip(): return conversation_history, ""
 
@@ -196,7 +196,7 @@ def get_tutor_response(user_input, conversation_history, lang):
     
     try:
         # Get tutor's response based on user input
-        response = asyncio.run(engine.get_guidance(user_input))
+        response = await engine.get_guidance(user_input)
         engine.save_conversation(user_input, response)
         conversation_history.append({"role": "assistant", "content": response})
         return conversation_history, ""
@@ -705,7 +705,7 @@ def main():
         user_sessions[default_session_id] = engine
         
         # Initialize the engine in the background
-        asyncio.create_task(engine.initialize_engine())
+        await engine.initialize_engine()
         
         yield
         
