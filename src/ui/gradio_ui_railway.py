@@ -721,7 +721,7 @@ def main():
     assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
 
     if os.path.exists(assets_path):
-        app.mount("/static", StaticFiles(directory=assets_path), name="assets")
+        app.mount("/static", StaticFiles(directory=assets_path), name="static")
 
     # --- End of new code ---
 
