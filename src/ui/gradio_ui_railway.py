@@ -391,7 +391,7 @@ def create_gradio_interface():
         matched_index_id = gr.State(value=None)
 
         # --- Main Application Container (Initially Hidden) ---
-        with gr.Column(visible=True) as main_app_container:
+        with gr.Column(visible=False) as main_app_container:
         # --- language selector ---
            
             app_title = gr.Markdown(f"# {get_ui_text('app_title', 'en')}", elem_id="app_title")
@@ -457,28 +457,28 @@ def create_gradio_interface():
 
                 # Step 1: File Upload
                 with gr.Column(visible=True) as step_1_container:
-                    modal_step1_header = gr.Markdown(f"## {get_ui_text('modal_step1_header', 'en')}")
-                    modal_step1_subheader = gr.Markdown(f"### {get_ui_text('modal_step1_subheader', 'en')}")
-                    gr.Image(value="/static/upload.png", interactive=False, show_download_button=False, show_label=False)
+                    modal_step1_header = gr.Markdown(f"{get_ui_text('modal_step1_header', 'en')}")
+                    modal_step1_subheader = gr.Markdown(f"{get_ui_text('modal_step1_subheader', 'en')}")
+                    gr.Image(value="/assets/upload.png", interactive=False, show_download_button=False, show_label=False)
                     modal_step1_info = gr.Markdown(get_ui_text('modal_step1_info', 'en'))
-                    modal_step1_success_header = gr.Markdown(f"### {get_ui_text('modal_step1_success_header', 'en')}")
-                    gr.Image(value="/static/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
+                    modal_step1_success_header = gr.Markdown(f"{get_ui_text('modal_step1_success_header', 'en')}")
+                    gr.Image(value="/assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_2_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
 
                 # Step 2: Index Creation
                 with gr.Column(visible=False) as step_2_container:
-                    modal_step2_header = gr.Markdown(f"## {get_ui_text('modal_step2_header', 'en')}")
+                    modal_step2_header = gr.Markdown(f"{get_ui_text('modal_step2_header', 'en')}")
                     modal_step2_subheader = gr.Markdown(get_ui_text('modal_step2_subheader', 'en'))
-                    gr.Image(value="/static/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
 
                     modal_step2_detail = gr.Markdown(get_ui_text('modal_step2_detail', 'en'))
-                    gr.Image(value="/static/index_creating.png", interactive=False, show_download_button=False, show_label=False)
-                    gr.Image(value="/static/index_success.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
+                    gr.Image(value="/assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
                     next_to_step_3_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
                 
                 # Step 3: Start Tutoring
                 with gr.Column(visible=False) as step_3_container:
-                    modal_step3_header = gr.Markdown(f"## {get_ui_text('modal_step3_header', 'en')}")
+                    modal_step3_header = gr.Markdown(f"{get_ui_text('modal_step3_header', 'en')}")
                     modal_step3_subheader = gr.Markdown(get_ui_text('modal_step3_subheader', 'en'))
                     start_btn = gr.Button(get_ui_text('modal_start_btn', 'en'), variant="primary")
 
@@ -635,10 +635,6 @@ def create_gradio_interface():
             fn=check_and_update_ui_state,
             inputs=[language_state],
             outputs=[user_input, status_display, progress_display]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
         )
 
         send_btn.click(
@@ -721,7 +717,9 @@ def main():
     assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
 
     if os.path.exists(assets_path):
-        app.mount("/static", StaticFiles(directory=assets_path), name="static")
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+    else:
+        print(f"Warning: Assets directory not found at {assets_path}")
 
     # --- End of new code ---
 
