@@ -671,15 +671,15 @@ def create_gradio_interface():
         )
 
         # Load initial session status when the app loads. The popup will appear on top.
-        interface.load(
-            fn=get_session_status, 
-            inputs=None, 
-            outputs=[session_info_display]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
-        )
+        # interface.load(
+        #     fn=get_session_status, 
+        #     inputs=None, 
+        #     outputs=[session_info_display]
+        # ).then(
+        #     fn=check_and_update_ui_state,
+        #     inputs=[language_state],
+        #     outputs=[user_input, status_display, progress_display]
+        # )
 
     return interface
 
@@ -719,11 +719,10 @@ def main():
 
     
     assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
-    
+
     if os.path.exists(assets_path):
         app.mount("/static", StaticFiles(directory=assets_path), name="assets")
-    else:
-        print(f"Warning: assets directory not found at {assets_path}")
+
     # --- End of new code ---
 
     @app.get("/health")
