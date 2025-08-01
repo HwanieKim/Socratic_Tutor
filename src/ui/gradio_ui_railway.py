@@ -128,11 +128,15 @@ async def save_and_create_index(staged_files, lang='en'):
 
         yield get_ui_text("index_creation_step1", lang)
         # This is where files are actually saved to the DB
-        upload_result = engine.upload_files(staged_files)
-        yield upload_result
-        
+        upload_result_id = engine.upload_files(staged_files)
+        translate_upload_result = get_ui_text(upload_result_id, lang)
+        yield translate_upload_result
+
         yield f"\n{get_ui_text('index_creation_step2', lang)}"
-        async for status_message in engine.create_user_index():
+        async for result_dict in engine.create_user_index():
+            status_message = get_ui_text(
+                result_dict["key"], lang
+            ).format(**result_dict["params"])
             yield status_message
 
     except Exception as e:
@@ -196,9 +200,14 @@ async def get_tutor_response(user_input, conversation_history, lang):
         return conversation_history, ""
     
     try:
+        result  = await engine.get_guidance(user_input)
         # Get tutor's response based on user input
-        response = await engine.get_guidance(user_input)
-        engine.save_conversation(user_input, response)
+        if result["type"] == "ui_text":
+            response = get_ui_text(result["key"], lang)
+        else: # result["type"] == "response"
+            response = result["content"]
+            engine.save_conversation(user_input, response)
+
         conversation_history.append({"role": "assistant", "content": response})
         return conversation_history, ""
     except Exception as e:
@@ -270,23 +279,10 @@ def check_and_update_ui_state(lang='en'):
     engine = get_or_create_session(current_session_id)
     status = engine.get_tutoring_status() if engine else {}
     
-    # Chat input update
+    # Chat input update only
     chat_update = update_chat_availability(lang)
     
-    # Status message and progress with enhanced messaging
-    if not status.get('step1_upload_complete', False):
-        status_msg = get_ui_text("tutorial_step1_title", lang) + ": " + get_ui_text("tutorial_step1_desc", lang)
-        progress = get_ui_text("progress_waiting_upload", lang)
-    elif not status.get('step2_index_complete', False):
-        count = status.get('documents_count', 0)
-        status_msg = get_ui_text("tutorial_step2_title", lang) + f": {count} " + get_ui_text("documents_uploaded_suffix", lang)
-        progress = get_ui_text("progress_waiting_index", lang)
-    else:
-        count = status.get('indexed_count', 0)
-        status_msg = get_ui_text("tutorial_step3_title", lang) + f": {count} " + get_ui_text("documents_indexed_suffix", lang)
-        progress = get_ui_text("progress_all_complete", lang)
-    
-    return chat_update, status_msg, progress
+    return chat_update
 
 def get_tutorial_message(step: int, lang='en') -> str:
     """Get tutorial message for current step"""
@@ -331,12 +327,9 @@ async def handle_load_index_click(index_id, lang='en'):
     engine = get_or_create_session(current_session_id)
     if not index_id or not engine: return get_ui_text('index_load_error', lang)
     
-    # Use an async generator to yield status updates
-    status_updates = []
-    async for message in engine.load_existing_index(index_id):
-        status_updates.append(message)
-        # We return the final message, but you could also yield here if Gradio supported it directly
-    return "\n".join(status_updates)
+    result_dict = await engine.load_existing_index(index_id)
+    final_message = get_ui_text('index_load_success', lang).format(**result_dict.get("params", {}))
+    return final_message
 
 
 # --- [FINAL VERSION] Gradio Interface Creation ---
@@ -522,7 +515,7 @@ def create_gradio_interface():
 
         all_ui_outputs = [
             language_state, app_title, app_header, session_header, new_session_btn,
-            session_status_btn, language_dropdown, session_info_display, status_display, progress_display,
+            session_status_btn, language_dropdown, session_info_display,
             upload_header, file_upload, upload_status, setup_header, load_index_btn, create_index_btn,
             setup_status, conversation_header, chat_disclaimer_md, user_input,
             send_btn, reset_btn, clear_btn,
@@ -531,16 +524,6 @@ def create_gradio_interface():
             modal_step2_header, modal_step2_subheader, modal_step2_detail, next_to_step_3_btn,
             modal_step3_header, modal_step3_subheader, start_btn
         ]
-
-        language_dropdown.change(
-            fn=update_ui_language,
-            inputs=[language_dropdown],
-            outputs=all_ui_outputs
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_dropdown],
-            outputs=[user_input, status_display, progress_display]
-        )
 
         # Modal/Popup control functions
         def handle_next_step(current_step):
@@ -592,10 +575,6 @@ def create_gradio_interface():
             new_session,
             inputs=[language_state],
             outputs=[chatbot, session_info_display, upload_status, setup_status]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
         )
 
         session_status_btn.click(
@@ -607,20 +586,12 @@ def create_gradio_interface():
             handle_file_upload_staging,
             inputs=[file_upload, language_state],
             outputs=[upload_status, load_index_btn, create_index_btn, matched_index_id, uploaded_files_state]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
         )
 
         create_index_btn.click(
             save_and_create_index,
             inputs=[uploaded_files_state, language_state],
             outputs=[setup_status]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
         )
 
 
@@ -628,10 +599,6 @@ def create_gradio_interface():
             handle_load_index_click,
             inputs=[matched_index_id, language_state],
             outputs=[setup_status]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
         )
 
         send_btn.click(
@@ -660,7 +627,15 @@ def create_gradio_interface():
         language_dropdown.change(
             fn=check_and_update_ui_state,
             inputs=[language_dropdown],
-            outputs=[user_input, status_display, progress_display]
+            outputs=[user_input]
+        ).then (
+            fn = get_session_status,
+            inputs= [language_dropdown],
+            outputs=[session_info_display]
+        ).then(
+            fn=update_ui_language,
+            inputs=[language_dropdown],
+            outputs=all_ui_outputs
         )
 
         # Load initial session status when the app loads. The popup will appear on top.
@@ -671,7 +646,7 @@ def create_gradio_interface():
         ).then(
             fn=check_and_update_ui_state,
             inputs=[language_state],
-            outputs=[user_input, status_display, progress_display]
+            outputs=[user_input]
         )
 
     return interface
@@ -710,6 +685,13 @@ def main():
     interface = create_gradio_interface()
     app = FastAPI(lifespan=lifespan)
 
+    # Add this: Mount static files for assets
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+        print(f"Assets directory mounted: {assets_path}")
+    else:
+        print(f"Assets directory not found: {assets_path}")
 
     @app.get("/health")
     def health_check():

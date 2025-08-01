@@ -71,7 +71,7 @@ class TutorEngine:
         if self._is_engine_ready:
             print("✅ Engine warm-up successful. Ready for requests.")
         else:
-            print("⚠️ Engine warm-up failed. Check configuration.")
+            print("⚠️ Engine ready. waiting for an index to be loaded.")
             
             
     async def _ensure_engine_ready(self):
@@ -199,7 +199,7 @@ class TutorEngine:
             traceback.print_exc()
             raise
     
-    async def get_guidance(self, user_question: str) -> str:
+    async def get_guidance(self, user_question: str) -> dict:
         """
         Main entry point for getting tutoring guidance
         
@@ -218,26 +218,26 @@ class TutorEngine:
             status = self.get_tutoring_status()
             
             if not status['step1_upload_complete']:
-                return get_ui_text("engine_upload_documents_first", self.language)
+                return {"type": "ui_text","key": "engine_upload_documents_first"}
             elif not status['step2_index_complete']:
-                return get_ui_text("engine_create_index_first", self.language)
+                return {"type": "ui_text","key": "engine_create_index_first"}
             else:
-                return get_ui_text("engine_system_not_ready", self.language)
+                return {"type": "ui_text","key": "engine_system_not_ready"}
 
         await self._ensure_engine_ready()
 
         if not self._is_engine_ready:
-            return get_ui_text("engine_index_not_loaded", self.language)
+            return {"type": "ui_text","key": "engine_index_not_loaded"}
         try:
             # Input validation (from original implementation)
             if not user_question or not user_question.strip():
-                return get_ui_text("engine_happy_to_help", self.language)
-            
+                return {"type": "ui_text","key": "engine_happy_to_help"}
+
             # Sanitize and validate input
             user_question = user_question.strip()
             if len(user_question) > 1000:  # Limit very long questions
-                return get_ui_text("engine_question_too_long", self.language)
-            
+                return {"type": "ui_text","key": "engine_question_too_long"}
+
             # Add user message to memory
             self.memory_manager.add_user_message(user_question)
             
@@ -258,22 +258,23 @@ class TutorEngine:
             
             # Add response to memory and return (Result)
             self.memory_manager.add_assistant_message(response)
-            return response
-            
+            return {"type": "response", "content": response}
+
         except Exception as e:
             error_msg = str(e).lower()
             # Handle specific error types more gracefully (from original implementation)
             if ("429" in error_msg or "quota" in error_msg or "rate" in error_msg 
                 or "503" in error_msg or "unavailable" in error_msg or "overloaded" in error_msg):
-                error_response = get_ui_text("engine_high_demand", self.language)
+                error_key = "engine_high_demand"
             elif "network" in error_msg or "connection" in error_msg:
-                error_response = get_ui_text("engine_connection_error", self.language)
+                error_key = "engine_connection_error"
             else:
                 print(f"--- UNEXPECTED ERROR IN ROUTER --- \n{e}\n---------------")
-                error_response = get_ui_text("engine_unexpected_error", self.language)
-                
+                error_key = "engine_unexpected_error"
+
+            error_response = get_ui_text(error_key, self.language)
             self.memory_manager.add_assistant_message(error_response)
-            return error_response
+            return {"type": "response", "content": error_response}
     
     def _pipeline_new_question(self, user_question: str) -> str:
         """
@@ -482,10 +483,9 @@ class TutorEngine:
         """
         try:
             if not uploaded_files:
-                return get_ui_text("engine_no_files", self.language)
-            
-            saved_files = []
-            skipped_files = []
+                return "engine_no_files"
+
+            saved_files = 0
             user_upload_dir = os.path.join(config.USER_UPLOADS_DIR, self.session_id)
             os.makedirs(user_upload_dir, exist_ok=True)
             
@@ -498,7 +498,6 @@ class TutorEngine:
                 original_filename = os.path.basename(file.name)
                 
                 # Create unique filename
-                file_extension = os.path.splitext(original_filename)[1]
                 unique_filename = f"{file_hash}_{original_filename}"
                 save_path = os.path.join(user_upload_dir, unique_filename)
                 
@@ -516,18 +515,17 @@ class TutorEngine:
                 
                 doc_id = self.db_manager.save_uploaded_document(self.session_id, file_info)
                 if doc_id > 0:
-                    saved_files.append(original_filename)
+                    saved_files += 1
             
-            message_parts = []
-            if saved_files:
-                message_parts.append(f"✅ Successfully saved {len(saved_files)} new documents.")
-            if skipped_files:
-                message_parts.append(f"ℹ️ Skipped {len(skipped_files)} documents that already exist in the database.")
-            
-            return "\n".join(message_parts) if message_parts else get_ui_text("engine_no_new_docs", self.language)
-                
+            if saved_files > 0:
+                return "engine_upload_success_simple"
+            else:
+                return "engine_no_new_docs"
+
         except Exception as e:
-            return f"❌ Upload failed: {str(e)}"
+            print(f"❌ Error during file upload: {e}") # 로그 추가
+            traceback.print_exc()
+            return "engine_upload_failed_simple"
     
     async def create_user_index(self) -> AsyncGenerator[str, None]:
         """Create user-specific index from uploaded documents
@@ -541,7 +539,7 @@ class TutorEngine:
             doc_to_index = [doc for doc in documents if not doc['indexed']]
             
             if not doc_to_index:
-                yield "All uploaded documents are already part of an index. Nothing to do."
+                yield {"key": "engine_no_new_docs", "params": {}}
                 return
             
             # Prepare file paths for index creation
@@ -555,27 +553,41 @@ class TutorEngine:
             # Create user-specific index directory
             user_index_dir = os.path.join(config.USER_INDEXES_DIR, str(uuid.uuid4()))
             
-            yield f"Creating index from {len(file_paths)} documents..."
+            yield {
+                "key": "engine_index_creation_start",
+                "params": {
+                    "count": len(file_paths)
+                }
+            }
 
             await create_index_from_files(file_paths, user_index_dir)
 
-            yield "update database to mark documents as indexed"
+            yield {"key": "engine_index_updating_db", "params": {}}
             # Update database to mark documents as indexed
             self.db_manager.mark_documents_indexed(self.session_id, user_index_dir, file_hashes)
 
-            yield "Reloading the engine with new index..."
+            yield {"key": "engine_index_reloading", "params": {}}
             # Reload the engine with new index
             self.index = await self._load_index_from_path_async(user_index_dir)
-            
-            yield "Initializing modules..."
+
+            yield {"key": "engine_index_initializing_modules", "params": {}}
             self._initialize_modules()
             self._is_engine_ready = True
 
-            yield f"✅ Index created successfully!\n• Processed {len(file_paths)} documents\n• Engine ready for tutoring"
-           
+            yield {
+                "key": "engine_index_creation_success",
+                "params": {
+                    "count": len(file_paths)
+                }
+            }
+
         except Exception as e:
-            yield f"❌ Index creation failed: {str(e)}"
-    
+            yield {
+                "key": "engine_index_creation_failed",
+                "params": {
+                    "error": str(e)
+                }
+            }
     def get_user_documents(self) -> List[Dict]:
         """Get list of user's uploaded documents
         
@@ -730,17 +742,17 @@ class TutorEngine:
         return best_match
 
 
-    async def load_existing_index(self, index_id: int) -> str:
+    async def load_existing_index(self, index_id: int) -> dict:
         """Load an existing index by ID and prepares the engine for tutoring."""
         try:
             index_info = self.db_manager.get_index_by_id(index_id)
             if not index_info:
-                return get_ui_text("engine_index_not_found", self.language)
-            
+                return {"key": "engine_index_not_found", "params":{}}
+
             index_path = index_info['index_path']
             if not os.path.exists(index_path):
-                return get_ui_text("engine_index_path_missing", self.language)
-            
+                return {"key": "engine_index_path_missing", "params": {}}
+
             # Load the index into memory
             self.index = await self._load_index_from_path_async(index_path)
             
@@ -756,13 +768,16 @@ class TutorEngine:
             print(f"✅ Successfully loaded index ID {index_id} and set as active for session {self.session_id}")
             
             doc_count = index_info.get('document_count', 'N/A')
-            return f"✅ Loaded index with {doc_count} documents. Ready for tutoring!"
+            return {
+                "key":"engine_load_success",
+                "params":{"count": doc_count}
+            }
             
         except Exception as e:
             self._is_engine_ready = False
             print(f"❌ Failed to load existing index: {e}")
             traceback.print_exc()
-            return f"❌ Failed to load index: {str(e)}"
+            return {"key": "engine_load_failed", "params": {"error": str(e)}}
 
 # Legacy method aliases for backward compatibility
 def get_guidance(user_question: str) -> str:
