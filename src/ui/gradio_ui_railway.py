@@ -721,7 +721,7 @@ def main():
     assets_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
     
     if os.path.exists(assets_path):
-        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+        app.mount("/static", StaticFiles(directory=assets_path), name="assets")
     else:
         print(f"Warning: assets directory not found at {assets_path}")
     # --- End of new code ---
