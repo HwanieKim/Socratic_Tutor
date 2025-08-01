@@ -671,15 +671,15 @@ def create_gradio_interface():
         )
 
         # Load initial session status when the app loads. The popup will appear on top.
-        # interface.load(
-        #     fn=get_session_status, 
-        #     inputs=None, 
-        #     outputs=[session_info_display]
-        # ).then(
-        #     fn=check_and_update_ui_state,
-        #     inputs=[language_state],
-        #     outputs=[user_input, status_display, progress_display]
-        # )
+        interface.load(
+            fn=get_session_status, 
+            inputs=None, 
+            outputs=[session_info_display]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input, status_display, progress_display]
+        )
 
     return interface
 
@@ -729,7 +729,7 @@ def main():
     def health_check():
         return Response(status_code=200, content="OK")
 
-    app = gr.mount_gradio_app(app, interface, path="/")
+    app = gr.mount_gradio_app(app, interface, path="/app")
     port = int(os.getenv("PORT", 7860))
     
     print(f"Launching on 0.0.0.0:{port}")
