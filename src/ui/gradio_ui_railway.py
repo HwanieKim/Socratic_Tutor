@@ -298,7 +298,8 @@ async def handle_load_index_click(index_id, lang='en'):
     if not index_id or not engine: return get_ui_text('index_load_error', lang)
     
     result_dict = await engine.load_existing_index(index_id)
-    
+    print(f"🔄 After index load - engine ready: {engine.is_ready()}")
+
     # TutorEngine에서 반환하는 응답 처리
     if result_dict.get("type") == "ui_text":
         # params가 있으면 사용하고, 없으면 빈 dict 사용
@@ -577,11 +578,11 @@ def create_gradio_interface():
         ).then(
             fn= get_session_status,
             inputs=[language_state],
-            outputs=[user_input]
+            outputs=[session_info_display]
         ).then(
             fn=check_and_update_ui_state,
             inputs=[language_state],
-            outputs=[session_info_display]
+            outputs=[user_input]
         )
 
 
@@ -592,11 +593,11 @@ def create_gradio_interface():
         ).then(
             fn=get_session_status,
             inputs=[language_state],
-            outputs=[user_input]
+            outputs=[session_info_display]
         ).then(
             fn=check_and_update_ui_state,
             inputs=[language_state],
-            outputs=[session_info_display]
+            outputs=[user_input]
         )
 
 

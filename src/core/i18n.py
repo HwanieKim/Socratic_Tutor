@@ -92,7 +92,7 @@ UI_TEXTS = {
         # Chat controls
         "chat_disabled_step1": "📝 Please complete Step 1: Upload your documents first",
         "chat_disabled_step2": "⚙️ Please complete Step 2: Create index from your documents", 
-        "chat_enabled_ready": "✅ Ready! Ask me anything about your documents...",
+        "chat_enabled_ready": "type your question here...",
         "system_not_ready": "The tutoring system is not ready. Please ensure both steps are completed.",
         "chat_error": "I'm having trouble processing your message right now. Please try again.",
         
@@ -222,7 +222,7 @@ UI_TEXTS = {
         # Chat controls
         "chat_disabled_step1": "📝 Si prega di completare il Passo 1: Caricare prima i documenti",
         "chat_disabled_step2": "⚙️ Si prega di completare il Passo 2: Creare l'indice dai documenti",
-        "chat_enabled_ready": "✅ Pronto! Chiedimi qualsiasi cosa sui tuoi documenti...",
+        "chat_enabled_ready": "inserisci qui la tua domanda...",
         "system_not_ready": "Il sistema di tutoraggio non è pronto. Assicurati che entrambi i passaggi siano completati.",
         "chat_error": "Sto avendo problemi nell'elaborare il tuo messaggio. Si prega di riprovare.",
         
