@@ -592,6 +592,14 @@ def create_gradio_interface():
             save_and_create_index,
             inputs=[uploaded_files_state, language_state],
             outputs=[setup_status]
+        ).then(
+            fn= check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input]
+        ).then(
+            fn = get_session_status,
+            inputs=[language_state],
+            outputs=[session_info_display]
         )
 
 
@@ -599,6 +607,29 @@ def create_gradio_interface():
             handle_load_index_click,
             inputs=[matched_index_id, language_state],
             outputs=[setup_status]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input]
+        ).then(
+            fn=get_session_status,
+            inputs=[language_state],
+            outputs=[session_info_display]
+        )
+
+
+        load_index_btn.click(
+            handle_load_index_click,
+            inputs=[matched_index_id, language_state],
+            outputs=[setup_status]
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_state],
+            outputs=[user_input]
+        ).then(
+            fn=get_session_status,
+            inputs=[language_state],
+            outputs=[session_info_display]
         )
 
         send_btn.click(
