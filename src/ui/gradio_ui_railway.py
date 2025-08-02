@@ -152,17 +152,17 @@ def get_session_status(lang='en'):
         engine = user_sessions.get(current_session_id)
         if not engine: 
             return get_ui_text('session_not_found', lang)
-    
+        status_info = engine.get_tutoring_status()
         session_info = engine.get_session_info()
         
         # Format the session info using translated keys
-        if 'error' in session_info:
+        if 'error' in status_info:
             return f"{get_ui_text('error_prefix', lang)}: {session_info['error']}"
 
         return "".join([
             f"{get_ui_text('session_id_prefix', lang)}: {session_info['session_id'][:8]}...\n",
-            f"{get_ui_text('documents_prefix', lang)}: {session_info['documents_count']} {get_ui_text('documents_uploaded_suffix', lang)}, {session_info['indexed_documents']} {get_ui_text('documents_indexed_suffix', lang)}\n",
-            f"{get_ui_text('engine_status_prefix', lang)}: {get_ui_text('engine_ready', lang) if session_info['engine_ready'] else get_ui_text('engine_not_ready', lang)}\n",
+            f"{get_ui_text('documents_prefix', lang)}: {status_info.get('documents_count', 0)} {get_ui_text('documents_uploaded_suffix', lang)}, {status_info.get('indexed_count', 0)} {get_ui_text('documents_indexed_suffix', lang)}\n",
+            f"{get_ui_text('engine_status_prefix', lang)}: {get_ui_text('engine_ready', lang) if status_info.get('engine_ready',False) else get_ui_text('engine_not_ready', lang)}\n",
             f"{get_ui_text('created_at_prefix', lang)}: {session_info.get('user_created', get_ui_text('unknown', lang))}\n"
         ])
     except Exception as e:
@@ -298,8 +298,6 @@ async def handle_load_index_click(index_id, lang='en'):
     if not index_id or not engine: return get_ui_text('index_load_error', lang)
     
     result_dict = await engine.load_existing_index(index_id)
-    print(f"🔄 After index load - engine ready: {engine.is_ready()}")
-
     # TutorEngine에서 반환하는 응답 처리
     if result_dict.get("type") == "ui_text":
         # params가 있으면 사용하고, 없으면 빈 dict 사용
@@ -458,8 +456,12 @@ def create_gradio_interface():
         # --- Event Handlers & Connections ---
         
         # Language change handler
-        def update_ui_language(lang):
-             return {
+        def update_ui_language_and_state(lang):
+            """통합된 언어 변경 및 상태 업데이트 함수"""
+            # 채팅창의 현재 활성화 상태에 맞는 placeholder 설정
+            chat_placeholder = get_ui_text('chat_enabled_ready', lang)
+            
+            return {
                 language_state: lang,
                 app_title: gr.update(value=f"# {get_ui_text('app_title', lang)}"),
                 app_header: gr.update(value=get_ui_text('app_header', lang)),
@@ -477,7 +479,11 @@ def create_gradio_interface():
                 setup_status: gr.update(label=get_ui_text('setup_status_label', lang)),
                 conversation_header: gr.update(value=f"### {get_ui_text('conversation_header', lang)}"),
                 chat_disclaimer_md: gr.update(value=f"*{get_ui_text('chat_disclaimer', lang)}*"),
-                user_input: gr.update(label=get_ui_text('ask_question_label', lang), placeholder=get_ui_text('user_input_placeholder', lang)),
+                user_input: gr.update(
+                    label=get_ui_text('ask_question_label', lang), 
+                    placeholder=chat_placeholder,
+                    interactive=True
+                ),
                 send_btn: gr.update(value=get_ui_text('send_btn', lang)),
                 reset_btn: gr.update(value=get_ui_text('reset_btn', lang)),
                 clear_btn: gr.update(value=get_ui_text('clear_btn', lang)),
@@ -627,13 +633,9 @@ def create_gradio_interface():
 
         # Language change handler - updates UI state when language changes
         language_dropdown.change(
-            fn=update_ui_language,
+            fn=update_ui_language_and_state,
             inputs=[language_dropdown],
             outputs=all_ui_outputs
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_dropdown],
-            outputs=[user_input]
         ).then(
             fn=get_session_status,
             inputs=[language_dropdown],
