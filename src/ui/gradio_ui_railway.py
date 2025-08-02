@@ -238,71 +238,21 @@ def reset_conversation(lang='en'):
     return [], get_ui_text('conversation_reset', lang)
 
 def update_chat_availability(lang='en', status=None):
-    """Update chat input availability based on tutoring readiness"""
-    global current_session_id
-    
-    if not current_session_id:
-        return gr.update(
-            interactive=False, 
-            placeholder=get_ui_text("chat_disabled_step1", lang)
-        )
-    
-    engine = get_or_create_session(current_session_id)
-    if not engine:
-        return gr.update(
-            interactive=False, 
-            placeholder=get_ui_text("session_error", lang)
-        )
-    
-    # status가 제공되지 않은 경우에만 새로 가져오기
-    if status is None:
-        status = engine.get_tutoring_status()
-    
-    if not status['step1_upload_complete']:
-        return gr.update(
-            interactive=False, 
-            placeholder=get_ui_text("chat_disabled_step1", lang)
-        )
-    elif not status['step2_index_complete']:
-        return gr.update(
-            interactive=False, 
-            placeholder=get_ui_text("chat_disabled_step2", lang)
-        )
-    else:
-        return gr.update(
-            interactive=True, 
-            placeholder=get_ui_text("chat_enabled_ready", lang)
-        )
+    """Legacy function - chat is now always available"""
+    # 채팅은 이제 항상 활성화되므로 이 함수는 더 이상 필요하지 않음
+    return gr.update(
+        interactive=True, 
+        placeholder=get_ui_text("chat_enabled_ready", lang)
+    )
 
 def check_and_update_ui_state(lang='en'):
-    """Check current state and return UI updates"""
-    global current_session_id
-    print(f"🔧 check_and_update_ui_state called with lang: {lang}, session: {current_session_id}")
+    """Always enable chat - let the chat handler deal with setup messages"""
+    print(f"🔧 Enabling chat input for all states (lang: {lang})")
     
-    if not current_session_id: 
-        print("❌ No session ID found")
-        return gr.update(
-            interactive=False,
-            placeholder=get_ui_text("chat_disabled_step1", lang)
-        )
-    
-    engine = get_or_create_session(current_session_id)
-    if not engine:
-        print("❌ No engine found")
-        return gr.update(
-            interactive=False,
-            placeholder=get_ui_text("session_error", lang)
-        )
-    
-    # 한 번만 상태를 가져와서 사용
-    status = engine.get_tutoring_status()
-    print(f"📊 Tutoring status: {status}")
-    
-    # status를 전달하여 중복 계산 방지
-    chat_update = update_chat_availability(lang, status)
-    print(f"💬 Chat update result: {chat_update}")
-    
-    return chat_update
+    return gr.update(
+        interactive=True, 
+        placeholder=get_ui_text("chat_enabled_ready", lang)
+    )
 
 def get_tutorial_message(step: int, lang='en') -> str:
     """Get tutorial message for current step"""
@@ -348,7 +298,19 @@ async def handle_load_index_click(index_id, lang='en'):
     if not index_id or not engine: return get_ui_text('index_load_error', lang)
     
     result_dict = await engine.load_existing_index(index_id)
-    final_message = get_ui_text('engine_load_success', lang).format(**result_dict.get("params", {}))
+    
+    # TutorEngine에서 반환하는 응답 처리
+    if result_dict.get("type") == "ui_text":
+        # params가 있으면 사용하고, 없으면 빈 dict 사용
+        params = result_dict.get("params", {})
+        try:
+            final_message = get_ui_text(result_dict["key"], lang).format(**params)
+        except KeyError as e:
+            # 키가 없으면 기본 메시지 사용
+            final_message = get_ui_text('engine_load_success_simple', lang)
+    else:
+        final_message = result_dict.get("content", get_ui_text('engine_load_success_simple', lang))
+    
     return final_message
 
 
@@ -450,10 +412,10 @@ def create_gradio_interface():
                     with gr.Row():
                         user_input = gr.Textbox(
                             label=get_ui_text('ask_question_label','en'), 
-                            placeholder=get_ui_text('chat_disabled_step1','en'), 
+                            placeholder=get_ui_text('chat_enabled_ready','en'), 
                             lines=2, 
                             scale=4,
-                            interactive=False  # Start disabled
+                            interactive=True  # Always enabled
                         )
                         send_btn = gr.Button(get_ui_text('send_btn','en'), variant="primary", scale=1)
                     with gr.Row():
