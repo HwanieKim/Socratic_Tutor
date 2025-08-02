@@ -237,7 +237,7 @@ def reset_conversation(lang='en'):
     if engine: engine.reset()
     return [], get_ui_text('conversation_reset', lang)
 
-def update_chat_availability(lang='en'):
+def update_chat_availability(lang='en', status=None):
     """Update chat input availability based on tutoring readiness"""
     global current_session_id
     
@@ -254,7 +254,9 @@ def update_chat_availability(lang='en'):
             placeholder=get_ui_text("session_error", lang)
         )
     
-    status = engine.get_tutoring_status()
+    # status가 제공되지 않은 경우에만 새로 가져오기
+    if status is None:
+        status = engine.get_tutoring_status()
     
     if not status['step1_upload_complete']:
         return gr.update(
@@ -275,12 +277,30 @@ def update_chat_availability(lang='en'):
 def check_and_update_ui_state(lang='en'):
     """Check current state and return UI updates"""
     global current_session_id
+    print(f"🔧 check_and_update_ui_state called with lang: {lang}, session: {current_session_id}")
+    
+    if not current_session_id: 
+        print("❌ No session ID found")
+        return gr.update(
+            interactive=False,
+            placeholder=get_ui_text("chat_disabled_step1", lang)
+        )
     
     engine = get_or_create_session(current_session_id)
-    status = engine.get_tutoring_status() if engine else {}
+    if not engine:
+        print("❌ No engine found")
+        return gr.update(
+            interactive=False,
+            placeholder=get_ui_text("session_error", lang)
+        )
     
-    # Chat input update only
-    chat_update = update_chat_availability(lang)
+    # 한 번만 상태를 가져와서 사용
+    status = engine.get_tutoring_status()
+    print(f"📊 Tutoring status: {status}")
+    
+    # status를 전달하여 중복 계산 방지
+    chat_update = update_chat_availability(lang, status)
+    print(f"💬 Chat update result: {chat_update}")
     
     return chat_update
 
@@ -328,7 +348,7 @@ async def handle_load_index_click(index_id, lang='en'):
     if not index_id or not engine: return get_ui_text('index_load_error', lang)
     
     result_dict = await engine.load_existing_index(index_id)
-    final_message = get_ui_text('index_load_success', lang).format(**result_dict.get("params", {}))
+    final_message = get_ui_text('engine_load_success', lang).format(**result_dict.get("params", {}))
     return final_message
 
 
@@ -593,11 +613,11 @@ def create_gradio_interface():
             inputs=[uploaded_files_state, language_state],
             outputs=[setup_status]
         ).then(
-            fn= check_and_update_ui_state,
+            fn= get_session_status,
             inputs=[language_state],
             outputs=[user_input]
         ).then(
-            fn = get_session_status,
+            fn=check_and_update_ui_state,
             inputs=[language_state],
             outputs=[session_info_display]
         )
@@ -608,29 +628,17 @@ def create_gradio_interface():
             inputs=[matched_index_id, language_state],
             outputs=[setup_status]
         ).then(
-            fn=check_and_update_ui_state,
+            fn=get_session_status,
             inputs=[language_state],
             outputs=[user_input]
         ).then(
-            fn=get_session_status,
+            fn=check_and_update_ui_state,
             inputs=[language_state],
             outputs=[session_info_display]
         )
 
 
-        load_index_btn.click(
-            handle_load_index_click,
-            inputs=[matched_index_id, language_state],
-            outputs=[setup_status]
-        ).then(
-            fn=check_and_update_ui_state,
-            inputs=[language_state],
-            outputs=[user_input]
-        ).then(
-            fn=get_session_status,
-            inputs=[language_state],
-            outputs=[session_info_display]
-        )
+       
 
         send_btn.click(
             get_tutor_response,
@@ -656,17 +664,17 @@ def create_gradio_interface():
 
         # Language change handler - updates UI state when language changes
         language_dropdown.change(
-            fn=check_and_update_ui_state,
-            inputs=[language_dropdown],
-            outputs=[user_input]
-        ).then (
-            fn = get_session_status,
-            inputs= [language_dropdown],
-            outputs=[session_info_display]
-        ).then(
             fn=update_ui_language,
             inputs=[language_dropdown],
             outputs=all_ui_outputs
+        ).then(
+            fn=check_and_update_ui_state,
+            inputs=[language_dropdown],
+            outputs=[user_input]
+        ).then(
+            fn=get_session_status,
+            inputs=[language_dropdown],
+            outputs=[session_info_display]
         )
 
         # Load initial session status when the app loads. The popup will appear on top.

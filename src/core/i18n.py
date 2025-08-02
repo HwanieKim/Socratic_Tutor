@@ -86,6 +86,7 @@ UI_TEXTS = {
         "session_status_error": "Error retrieving session status",
         "session_created": "New session created: {session_id}...",
         "conversation_reset": "Conversation has been reset",
+        "index_load_success": "✅ Index loaded successfully. Ready for tutoring!",
         "index_load_error": "Failed to load index",
         
         # Chat controls
@@ -215,6 +216,7 @@ UI_TEXTS = {
         "session_status_error": "Errore nel recuperare lo stato della sessione",
         "session_created": "Nuova sessione creata: {session_id}...",
         "conversation_reset": "La conversazione è stata ripristinata",
+        "index_load_success": "✅ Indice caricato con successo. Pronto per il tutoraggio!",
         "index_load_error": "Caricamento dell'indice non riuscito",
         
         # Chat controls
