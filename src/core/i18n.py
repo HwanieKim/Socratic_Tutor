@@ -132,6 +132,11 @@ UI_TEXTS = {
         "engine_no_new_docs": "ℹ️ No new documents were saved as they already exist.",
         "engine_load_success": "✅ Loaded index with {count} documents. Ready for tutoring!",
         "engine_load_failed": "❌ Failed to load index: {error}.",
+        
+        # 👇 [추가] 누락된 키들
+        "engine_load_success_simple": "✅ Index loaded successfully. Ready for tutoring!",
+        "engine_index_path_not_found": "❌ Index path not found. Please check your configuration.",
+        
         "engine_index_creation_start": "Creating index from {count} documents...",
         "engine_index_updating_db": "Updating database to mark documents as indexed...",
         "engine_index_reloading": "Reloading the engine with new index...",
@@ -262,6 +267,11 @@ UI_TEXTS = {
         "engine_no_new_docs": "ℹ️ Nessun nuovo documento da elaborare.",
         "engine_load_success": "✅ Indice caricato con {count} documenti. Pronto per il tutoraggio!",
         "engine_load_failed": "❌ Caricamento dell'indice non riuscito: {error}",
+        
+        # 👇 [추가] 누락된 키들 - 이탈리아어 번역
+        "engine_load_success_simple": "✅ Indice caricato con successo. Pronto per il tutoraggio!",
+        "engine_index_path_not_found": "❌ Percorso dell'indice non trovato. Si prega di controllare la configurazione.",
+        
         "engine_index_creation_start": "Creando indice da {count} documenti...",
         "engine_index_updating_db": "Aggiornamento del database per contrassegnare i documenti come indicizzati...",
         "engine_index_reloading": "Ricaricamento del motore con il nuovo indice...",

@@ -295,20 +295,23 @@ def is_chat_blocked(lang='en') -> tuple:
 
 async def handle_load_index_click(index_id, lang='en'):
     engine = get_or_create_session(current_session_id)
-    if not index_id or not engine: return get_ui_text('index_load_error', lang)
+    if not index_id or not engine: 
+        return get_ui_text('index_load_error', lang)
     
     result_dict = await engine.load_existing_index(index_id)
-    # TutorEngine에서 반환하는 응답 처리
-    if result_dict.get("type") == "ui_text":
-        # params가 있으면 사용하고, 없으면 빈 dict 사용
+    
+    # TutorEngine이 반환하는 딕셔너리에는 항상 "key"가 있음
+    if "key" in result_dict:
         params = result_dict.get("params", {})
         try:
             final_message = get_ui_text(result_dict["key"], lang).format(**params)
-        except KeyError as e:
-            # 키가 없으면 기본 메시지 사용
-            final_message = get_ui_text('engine_load_success_simple', lang)
+        except (TypeError, KeyError) as e:
+            print(f"Missing i18n key: {result_dict['key']}")
+            # 기본 메시지 사용
+            final_message = get_ui_text('engine_load_success', lang).format(count="N/A")
     else:
-        final_message = result_dict.get("content", get_ui_text('engine_load_success_simple', lang))
+        # 예상치 못한 응답 구조
+        final_message = get_ui_text('engine_load_success', lang).format(count="N/A")
     
     return final_message
 
