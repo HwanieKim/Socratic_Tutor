@@ -198,8 +198,8 @@ class TutorEngine:
             print(f"Error loading index from path {index_path}: {e}")
             traceback.print_exc()
             raise
-    
-    async def get_guidance(self, user_question: str) -> dict:
+
+    async def get_guidance(self, user_question: str, language: str = "en") -> dict:
         """
         Main entry point for getting tutoring guidance
         
@@ -244,18 +244,19 @@ class TutorEngine:
             # Stage 0: Intent Classification (State → Operator)
             intent = self.intent_classifier.classify_intent(
                 user_question, 
-                self.memory_manager.memory
+                self.memory_manager.memory,
+                language
             )
             print(f"DEBUG: Classified intent (Stage 0) as: {intent}", flush=True)
             
             # Route to appropriate pipeline (And)
             if intent == "new_question":
                 print("DEBUG: Executing pipeline: new_question", flush=True)
-                response = self._pipeline_new_question(user_question)
+                response = self._pipeline_new_question(user_question, language)
             else:  # follow_up
                 print("DEBUG: Executing pipeline: follow_up", flush=True)
-                response = self._pipeline_follow_up(user_question)
-            
+                response = self._pipeline_follow_up(user_question, language)
+
             # Add response to memory and return (Result)
             self.memory_manager.add_assistant_message(response)
             return {"type": "response", "content": response}
@@ -275,8 +276,8 @@ class TutorEngine:
             error_response = get_ui_text(error_key, self.language)
             self.memory_manager.add_assistant_message(error_response)
             return {"type": "response", "content": error_response}
-    
-    def _pipeline_new_question(self, user_question: str) -> str:
+
+    def _pipeline_new_question(self, user_question: str, language: str = "en") -> str:
         """
         Pipeline for handling new questions
         
@@ -293,13 +294,14 @@ class TutorEngine:
             # Stage 1: RAG retrieval and expert reasoning
             triplet, source_nodes = self.rag_retriever.perform_rag_search(
                 user_question, 
-                self.memory_manager.memory
+                self.memory_manager.memory,
+                language
             )
             
             # Validate knowledge sufficiency
-            if not self.rag_retriever.validate_knowledge_sufficiency(triplet):
+            if not self.rag_retriever.validate_knowledge_sufficiency(triplet,language):
                 self.memory_manager.clear_topic_cache()
-                return get_ui_text("engine_insufficient_knowledge", self.language)
+                return get_ui_text("engine_insufficient_knowledge", language)
             
             # Cache the context for follow-up questions
             self.memory_manager.cache_topic_context(triplet, source_nodes)
@@ -309,7 +311,8 @@ class TutorEngine:
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
-                answer_evaluation=None
+                answer_evaluation=None,
+                language=language
             )
             
             return response
@@ -317,8 +320,8 @@ class TutorEngine:
         except Exception as e:
             print(f"New question pipeline error: {e}")
             return get_ui_text("engine_processing_error", self.language)
-    
-    def _pipeline_follow_up(self, user_question: str) -> str:
+
+    def _pipeline_follow_up(self, user_question: str, language: str = "en") -> str:
         """
         Pipeline for handling follow-up responses
         
@@ -334,29 +337,30 @@ class TutorEngine:
             
             if not self.memory_manager.has_cached_context():
                 # No cached context, treat as new question
-                return self._pipeline_new_question(user_question)
-            
+                return self._pipeline_new_question(user_question, language)
+
             # Stage 0b: Classify follow-up type
             follow_up_type = self.intent_classifier.classify_follow_up_type(
                 user_question, 
-                self.memory_manager.memory
+                self.memory_manager.memory,
+                language
             )
             print(f"DEBUG: Classified follow-up type (Stage 0b) as: {follow_up_type}")
             
             if follow_up_type == "answer":
                 print("DEBUG: Follow-up type is an answer. Evaluating.")
                 # Student is attempting to answer
-                return self._handle_student_answer(user_question, triplet, source_nodes)
+                return self._handle_student_answer(user_question, triplet, source_nodes, language)
             else:
                 print("DEBUG: Follow-up type is a meta_question. Providing scaffolded help.")
                 # Student needs help (meta_question)
-                return self._handle_meta_question(triplet)
-                
+                return self._handle_meta_question(triplet, language)
+
         except Exception as e:
             print(f"Follow-up pipeline error: {e}")
-            return get_ui_text("engine_follow_up_no_context", self.language)
-    
-    def _handle_student_answer(self, student_answer: str, triplet: ReasoningTriplet, source_nodes: list) -> str:
+            return get_ui_text("engine_follow_up_no_context", language)
+
+    def _handle_student_answer(self, student_answer: str, triplet: ReasoningTriplet, source_nodes: list, language: str) -> str:
         """
         Handle when student provides an answer attempt
         
@@ -388,7 +392,8 @@ class TutorEngine:
                 student_answer, 
                 triplet,
                 tutor_last_message,
-                conversation_context
+                conversation_context,
+                language
             )
             print(f"DEBUG: Answer evaluation (Stage 1b): {evaluation.evaluation}")
             
@@ -397,19 +402,20 @@ class TutorEngine:
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
-                answer_evaluation=evaluation
+                answer_evaluation=evaluation,
+                language=language
             )
             
             # Enhance with encouragement
-            response = self.dialogue_generator.enhance_response_with_encouragement(response, evaluation)
-            
+            response = self.dialogue_generator.enhance_response_with_encouragement(response, evaluation, language)
+
             return response
             
         except Exception as e:
             print(f"Student answer handling error: {e}")
-            return get_ui_text("engine_interesting_response", self.language)
-    
-    def _handle_meta_question(self, triplet: ReasoningTriplet) -> str:
+            return get_ui_text("engine_interesting_response", language)
+
+    def _handle_meta_question(self, triplet: ReasoningTriplet, language: str = "en") -> str:
         """
         Handle when student asks for help or expresses confusion
         
@@ -434,7 +440,8 @@ class TutorEngine:
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
-                scaffolding_decision=scaffolding_decision
+                scaffolding_decision=scaffolding_decision,
+                language=language
             )
             
             return response

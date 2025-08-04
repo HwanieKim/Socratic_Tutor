@@ -43,10 +43,15 @@ class RAGRetriever:
         
         # Setup JSON parser for structured output
         self.pydantic_parser = PydanticOutputParser(ReasoningTriplet)
+        self._create_json_generator_engine("en")
+
+    def _create_json_generator_engine(self, language: str = "en"):
+        from .prompts_template import get_json_context_prompt
+
         self.json_generator_engine = RetrieverQueryEngine.from_args(
             retriever=self.hybrid_retriever,
             llm=self.llm_reasoning,
-            text_qa_template=JSON_CONTEXT_PROMPT
+            text_qa_template=get_json_context_prompt(language)
         )
     
     def _setup_retrievers(self):
@@ -84,8 +89,8 @@ class RAGRetriever:
                 index=self.index,
                 similarity_top_k=5
             )
-    
-    def perform_rag_search(self, user_question: str, memory) -> Tuple[ReasoningTriplet, List]:
+
+    def perform_rag_search(self, user_question: str, memory, language: str = "en") -> Tuple[ReasoningTriplet, List]:
         """
         Stage 1: Perform RAG search and generate expert reasoning
         
@@ -97,6 +102,8 @@ class RAGRetriever:
             Tuple[ReasoningTriplet, List]: Reasoning triplet and source nodes
         """
         try:
+            self._create_json_generator_engine(language)
+
             # Format query with conversation history for better context
             llm_query_str = self._format_query_with_history(user_question, memory)
             
@@ -115,7 +122,7 @@ class RAGRetriever:
             except Exception as parse_error:
                 print(f"JSON parsing failed: {parse_error}")
                 # Fallback parsing
-                internal_triplet = self._fallback_parse(raw_llm_output, user_question)
+                internal_triplet = self._fallback_parse(raw_llm_output, user_question, language)
             
             return internal_triplet, source_nodes
             
@@ -158,17 +165,31 @@ class RAGRetriever:
         except Exception as e:
             print(f"Error formatting query with history: {e}")
             return user_question
-    
-    def _fallback_parse(self, raw_output: str, user_question: str) -> ReasoningTriplet:
+
+    def _fallback_parse(self, raw_output: str, user_question: str, language: str = "en") -> ReasoningTriplet:
         """Fallback parsing when JSON parsing fails"""
         try:
             # Try to extract key components from raw output
             lines = raw_output.strip().split('\n')
-            
+            default_messages = {
+            "en": {
+                "reasoning": "Based on the available information...",
+                "answer": "I found relevant information, but need to process it further."
+            },
+            "it": {
+                "reasoning": "Basandomi sulle informazioni disponibili...",
+                "answer": "Ho trovato informazioni rilevanti, ma devo elaborarle ulteriormente."
+            },
+            "es": {
+                "reasoning": "Basándome en la información disponible...",
+                "answer": "Encontré información relevante, pero necesito procesarla más."
+            }
+        }
             question = user_question
-            reasoning_chain = "Based on the available information..."
-            answer = "I found relevant information, but need to process it further."
-            
+            messages = default_messages.get(language, default_messages["en"])
+            reasoning_chain = messages["reasoning"]
+            answer = messages["answer"]
+
             # Simple parsing logic
             for line in lines:
                 if 'question' in line.lower() and ':' in line:
@@ -186,13 +207,34 @@ class RAGRetriever:
             
         except Exception as e:
             print(f"Fallback parsing error: {e}")
-            return ReasoningTriplet(
-                question=user_question,
-                reasoning_chain="Unable to process the information properly.",
-                answer="I apologize, but I'm having difficulty processing the information right now."
-            )
+            return self._create_fallback_triplet(user_question,language)
     
-    def validate_knowledge_sufficiency(self, triplet: ReasoningTriplet) -> bool:
+    def _create_fallback_triplet(self, user_question: str, language: str = "en") -> ReasoningTriplet:
+        """Create fallback triplet when all parsing fails"""
+        fallback_messages = {
+            "en": {
+            "reasoning": "Unable to process the information properly.",
+            "answer": "I apologize, but I'm having difficulty processing the information right now."
+            },
+            "it": {
+            "reasoning": "Impossibile elaborare correttamente le informazioni.",
+            "answer": "Mi scuso, ma sto avendo difficoltà nell'elaborare le informazioni in questo momento."
+        },
+        "es": {
+            "reasoning": "No se puede procesar la información correctamente.",
+            "answer": "Me disculpo, pero estoy teniendo dificultades para procesar la información en este momento."
+        }
+    }
+    
+        messages = fallback_messages.get(language, fallback_messages["en"])
+    
+        return ReasoningTriplet(
+            question=user_question,
+            reasoning_chain=messages["reasoning"],
+            answer=messages["answer"]
+        )
+
+    def validate_knowledge_sufficiency(self, triplet: ReasoningTriplet, language: str = "en") -> bool:
         """
         Validate if the retrieved knowledge is sufficient to answer the question
         
@@ -203,19 +245,26 @@ class RAGRetriever:
             bool: True if knowledge is sufficient, False otherwise
         """
         # Check for insufficient information indicators
-        insufficient_indicators = [
-            "insufficient information",
-            "not enough information",
-            "cannot determine",
-            "unable to answer",
-            "information not available",
-            "context doesn't contain"
+        insufficient_indicators = {
+        "en": [
+            "insufficient information", "not enough information", "cannot determine",
+            "unable to answer", "information not available", "context doesn't contain"
+        ],
+        "it": [
+            "informazioni insufficienti", "non abbastanza informazioni", "non posso determinare",
+            "impossibile rispondere", "informazioni non disponibili", "il contesto non contiene"
+        ],
+        "es": [
+            "información insuficiente", "no hay suficiente información", "no se puede determinar",
+            "no se puede responder", "información no disponible", "el contexto no contiene"
         ]
-        
+    }
+
+        indicators = insufficient_indicators.get(language, insufficient_indicators["en"])
         answer_lower = triplet.answer.lower()
         reasoning_lower = triplet.reasoning_chain.lower()
         
-        for indicator in insufficient_indicators:
+        for indicator in indicators:
             if indicator in answer_lower or indicator in reasoning_lower:
                 return False
         

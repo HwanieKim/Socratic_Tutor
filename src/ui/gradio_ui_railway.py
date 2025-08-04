@@ -71,7 +71,7 @@ def handle_file_upload_staging(files, lang='en'):
     if not files:
         return get_ui_text("no_files_staged", lang), gr.update(visible=False), gr.update(visible=False), None, []
 
-    engine = get_or_create_session(current_session_id)
+    engine = get_or_create_session(current_session_id, lang)
     if not engine:
         return get_ui_text("session_error", lang), gr.update(visible=False), gr.update(visible=False), None, []
 
@@ -121,7 +121,7 @@ async def save_and_create_index(staged_files, lang='en'):
         return
 
     try:
-        engine = get_or_create_session(current_session_id)
+        engine = get_or_create_session(current_session_id, lang)
         if not engine:
             yield get_ui_text("session_error", lang)
             return
@@ -174,8 +174,8 @@ async def get_tutor_response(user_input, conversation_history, lang):
     if not user_input.strip(): return conversation_history, ""
 
     conversation_history.append({"role": "user", "content": user_input})
-    
-    engine = get_or_create_session(current_session_id)
+
+    engine = get_or_create_session(current_session_id, lang)
     if not engine:
         error_msg = get_ui_text("session_error", lang)
         conversation_history.append({"role": "assistant", "content": error_msg})
@@ -200,7 +200,7 @@ async def get_tutor_response(user_input, conversation_history, lang):
         return conversation_history, ""
     
     try:
-        result  = await engine.get_guidance(user_input)
+        result  = await engine.get_guidance(user_input,language=lang)
         # Get tutor's response based on user input
         if result["type"] == "ui_text":
             response = get_ui_text(result["key"], lang)
@@ -233,7 +233,7 @@ def new_session(lang='en'):
     return [], session_created_msg, "", ""
 
 def reset_conversation(lang='en'):
-    engine = get_or_create_session(current_session_id)
+    engine = get_or_create_session(current_session_id, lang)
     if engine: engine.reset()
     return [], get_ui_text('conversation_reset', lang)
 
@@ -278,8 +278,8 @@ def is_chat_blocked(lang='en') -> tuple:
     
     if not current_session_id:
         return True, get_ui_text("chat_disabled_step1", lang), 1
-    
-    engine = get_or_create_session(current_session_id)
+
+    engine = get_or_create_session(current_session_id, lang)
     if not engine:
         return True, get_ui_text("session_error", lang), 1
     
@@ -294,8 +294,8 @@ def is_chat_blocked(lang='en') -> tuple:
         return False, get_ui_text("chat_enabled_ready", lang), step
 
 async def handle_load_index_click(index_id, lang='en'):
-    engine = get_or_create_session(current_session_id)
-    if not index_id or not engine: 
+    engine = get_or_create_session(current_session_id, lang)
+    if not index_id or not engine:
         return get_ui_text('index_load_error', lang)
     
     result_dict = await engine.load_existing_index(index_id)
@@ -549,6 +549,7 @@ def create_gradio_interface():
         ) \
                 .then(
                     fn=get_session_status,
+                    inputs=[language_state],
                     outputs=[session_info_display]
                 )
         
@@ -559,6 +560,7 @@ def create_gradio_interface():
         ) \
                 .then(
                     fn=get_session_status,
+                    inputs=[language_state],
                     outputs=[session_info_display]
                 )
 
@@ -570,7 +572,9 @@ def create_gradio_interface():
         )
 
         session_status_btn.click(
-            get_session_status, outputs=[session_info_display]
+            get_session_status, 
+            inputs = [language_state],
+            outputs=[session_info_display]
         )
 
         # File upload and index creation
@@ -626,6 +630,7 @@ def create_gradio_interface():
 
         reset_btn.click(
             reset_conversation,
+            inputs=[language_state],
             outputs=[chatbot, setup_status]
         )
 
@@ -648,7 +653,7 @@ def create_gradio_interface():
         # Load initial session status when the app loads. The popup will appear on top.
         interface.load(
             fn=get_session_status, 
-            inputs=None, 
+            inputs=[language_state], 
             outputs=[session_info_display]
         ).then(
             fn=check_and_update_ui_state,
@@ -677,7 +682,7 @@ def main():
         current_session_id = default_session_id
         
         print(f"Application starting up. Creating default session: {default_session_id}")
-        engine = TutorEngine(session_id=default_session_id)
+        engine = TutorEngine(session_id=default_session_id, language="en")
         user_sessions[default_session_id] = engine
         
         # Initialize the engine in the background

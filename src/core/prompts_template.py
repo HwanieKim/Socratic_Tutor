@@ -1,5 +1,74 @@
 from llama_index.core.prompts import PromptTemplate
 
+def get_language_instruction(language: str) -> str:
+    """Returns the language instruction based on the provided language."""
+    language_instructions = {
+        "en": "IMPORTANT: You MUST ALWAYS respond in English.",
+        "it": "IMPORTANTE: Devi SEMPRE rispondere in italiano"
+    }
+    return language_instructions.get(language, language_instructions["en"])
+
+def get_classifier_language_instruction(language: str) -> str:
+    """Returns the language instruction for classifiers based on the provided language."""
+    if language == "en":
+        return "IMPORTANT: You MUST ALWAYS respond in English."
+    else :
+        return """ IMPORTANT:
+        -process and understandt the content in th user's language
+        - but your final classification/output MUST ALWAYS be in english.
+        - use EXACLTLY these english keywords: "new_question","follow_up","answer","correct","partially_correct","incorrect"
+        - DO NOT translate these system keywords
+        """
+def create_prompt_template_with_language(base_prompt_text:PromptTemplate, language: str = "en") -> PromptTemplate:
+    """Creates a PromptTemplate with the base prompt text and language instruction."""
+    language_instruction = get_language_instruction(language)
+
+    if hasattr(base_prompt_text, 'template'):
+        base_text = base_prompt_text.template
+    else:
+        base_text = str(base_prompt_text)
+    enhanced_text = f"{language_instruction}\n\n{base_text}"
+    return PromptTemplate(
+        enhanced_text
+    )
+
+def get_json_context_prompt(language: str = "en") -> PromptTemplate:
+    """Returns the JSON context prompt with the specified language."""
+    return create_prompt_template_with_language(
+        JSON_CONTEXT_PROMPT,
+        language
+    )
+
+def get_tutor_template(language: str = "en") -> PromptTemplate:
+    """Returns the tutor template with the specified language."""
+    return create_prompt_template_with_language(
+        TUTOR_TEMPLATE,
+        language
+    )
+def get_answer_evaluation_prompt(language: str = "en") -> PromptTemplate:
+    """Returns the answer evaluation prompt with the specified language."""
+
+    return create_prompt_template_with_language(
+        ANSWER_EVALUATION_PROMPT,
+        language
+    )
+def get_follow_up_type_classifier_prompt(language: str = "en") -> PromptTemplate:
+    """Returns the follow-up type classifier prompt with the specified language."""
+    language_instruction = get_classifier_language_instruction(language)
+    base_text = FOLLOW_UP_TYPE_CLASSIFIER_PROMPT.template
+    enhanced_text = f"{language_instruction}\n\n{base_text}"
+    return PromptTemplate(
+        enhanced_text
+    )
+def get_intent_classifier_prompt(language: str = "en") -> PromptTemplate:
+    """Returns the intent classifier prompt with the specified language."""
+    language_instruction = get_classifier_language_instruction(language)
+    base_text = INTENT_CLASSIFIER_PROMPT.template
+    enhanced_text = f"{language_instruction}\n\n{base_text}"
+    return PromptTemplate(
+        enhanced_text
+        
+    )
 # --- 1. JSON Generation Prompt ---
 # This prompt is used by the first LLM to structure the retrieved context 
 # into a clear, step-by-step reasoning chain.
@@ -215,3 +284,5 @@ Based on ALL the rules above, the provided context, and the conversation history
 --- Your Response (Tutor Only) ---
 """
 )
+
+
