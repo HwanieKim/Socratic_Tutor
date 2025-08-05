@@ -19,8 +19,11 @@ import asyncio
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Request
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware,RequestResponseEndpoint
+
 from requests import session
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -673,7 +676,23 @@ def main():
     except Exception as e:
         print(f"Database initialization warning: {e}")
     
-
+     # --- Middleware for HTTPS redirection ---
+    class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
+            # The 'x-forwarded-proto' header is a de facto standard
+            # for identifying the originating protocol of an HTTP request
+            # connected to your server through a reverse proxy.
+            if request.headers.get("x-forwarded-proto") == "http":
+                # Create a URL object from the original request to easily
+                # manipulate its components.
+                url = request.url.replace(scheme="https")
+                # Return a permanent redirect to the new HTTPS URL.
+                return RedirectResponse(url=str(url), status_code=308)
+            
+            # If the header is not 'http', or is not present, proceed
+            # with the request as normal.
+            response = await call_next(request)
+            return response
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Eagerly initialize a default TutorEngine on startup
@@ -697,6 +716,7 @@ def main():
     interface = create_gradio_interface()
     app = FastAPI(lifespan=lifespan)
 
+    app.add_middleware(HTTPSRedirectMiddleware)
     # Add this: Mount static files for assets
     assets_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
     if os.path.exists(assets_path):

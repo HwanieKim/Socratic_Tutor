@@ -27,6 +27,7 @@ gradio>=4.0.0
 gradio-modal
 fastapi
 uvicorn
+starlette
 
 llama-index-embeddings-clip
 git+https://github.com/openai/CLIP.git
