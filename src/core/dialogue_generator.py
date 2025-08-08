@@ -29,6 +29,11 @@ class DialogueGenerator:
     """Handles Socratic dialogue generation"""
     
     def __init__(self):
+        """
+        Initialize DialogueGenerator with Google GenAI LLM.
+        
+        Sets up the language model for generating adaptive Socratic responses.
+        """
         self.llm_tutor = GoogleGenAI(
             model_name=config.GEMINI_MODEL_NAME,
             api_key=os.getenv("GOOGLE_API_KEY"),
@@ -44,6 +49,21 @@ class DialogueGenerator:
         adaptive_strategy: str,
         language: str = "en"
     ) -> str:
+        """
+        Generate adaptive Socratic dialogue response based on student's learning profile.
+        
+        Args:
+            triplet: Expert reasoning triplet with question, reasoning, and answer
+            source_nodes: Retrieved source documents for context
+            conversation_memory: ChatMemoryBuffer with conversation history
+            answer_evaluation: Evaluation of student's previous answer
+            learning_profile: Student's current learning level and performance
+            adaptive_strategy: Strategy to use for dialogue generation
+            language: Language code for response generation
+            
+        Returns:
+            str: Generated Socratic dialogue response
+        """
         """
         Generate adaptive Socratic dialogue based on student's learning level and performance
         
@@ -128,6 +148,19 @@ class DialogueGenerator:
             scaffolding_decision: ScaffoldingDecision,
             language:str = "en"
     )-> str:
+        """
+        Generate scaffolding response based on scaffolding decision.
+        
+        Args:
+            triplet: Expert reasoning triplet for context
+            source_nodes: Retrieved source documents
+            conversation_memory: ChatMemoryBuffer with conversation history
+            scaffolding_decision: Decision about what type of scaffolding to provide
+            language: Language code for response generation
+            
+        Returns:
+            str: Generated scaffolding response
+        """
         try:
             print(f"[DEBUG] generating scaffolding response with strategy : {scaffolding_decision.scaffold_strategy}")
 

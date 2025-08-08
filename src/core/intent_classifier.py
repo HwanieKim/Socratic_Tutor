@@ -19,6 +19,11 @@ class IntentClassifier:
     """Handles all intent classification logic"""
     
     def __init__(self):
+        """
+        Initialize IntentClassifier with Google GenAI LLM.
+        
+        Sets up the language model for intent classification tasks.
+        """
         self.llm = GoogleGenAI(
             model_name=config.GEMINI_MODEL_NAME,
             api_key=os.getenv("GOOGLE_API_KEY"),
@@ -108,7 +113,15 @@ class IntentClassifier:
 
     def classify_meta_question_type(self, user_input: str, memory, language: str = "en") -> str:
         """
-        stage 0c: meta_question type classification
+        Stage 0c: Classify type of meta question for appropriate response.
+        
+        Args:
+            user_input: Student's meta question
+            memory: ChatMemoryBuffer with conversation history
+            language: Language code for classification
+            
+        Returns:
+            str: Meta question type classification result
         """
 
         try:
@@ -186,7 +199,15 @@ class IntentClassifier:
         return "answer"
     
     def _parse_intent_response(self, response_text: str) -> str:
-        """Enhanced parsing for intent classification with fallback strategies"""
+        """
+        Enhanced parsing for intent classification with fallback strategies.
+        
+        Args:
+            response_text: Raw LLM response to parse
+            
+        Returns:
+            str: Parsed intent ("new_question" or "follow_up")
+        """
         response_lower = response_text.lower().strip()
         
         # 1차: 정확한 영어 키워드 매칭
@@ -223,7 +244,15 @@ class IntentClassifier:
         return "new_question"
 
     def _parse_follow_up_type_response(self, response_text: str) -> str:
-        """Enhanced parsing for follow-up type classification"""
+        """
+        Enhanced parsing for follow-up type classification with fallback strategies.
+        
+        Args:
+            response_text: Raw LLM response to parse
+            
+        Returns:
+            str: Parsed follow-up type ("answer" or "meta_question")
+        """
         response_lower = response_text.lower().strip()
         
         # 1차: 정확한 키워드

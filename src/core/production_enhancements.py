@@ -16,6 +16,12 @@ from datetime import datetime, timedelta
 
 class ProductionEnhancements:
     def __init__(self, knowledge_base_index=None):
+        """
+        Initialize production enhancements with rate limiting, metrics, and logging.
+        
+        Args:
+            knowledge_base_index: Optional vector store index for topic relevance detection
+        """
         self.rate_limiter = RateLimiter()
         self.metrics = ConversationMetrics()
         self.logger = EnhancedLogger()
@@ -27,11 +33,27 @@ class ProductionEnhancements:
         ]
     
     def is_request_allowed(self, user_id: str = "default") -> bool:
-        """Check if request is within rate limits"""
+        """
+        Check if request is within rate limits for the user.
+        
+        Args:
+            user_id: User identifier for rate limiting
+            
+        Returns:
+            bool: True if request is allowed, False if rate limited
+        """
         return self.rate_limiter.is_allowed(user_id)
     
     def contains_harmful_content(self, question: str) -> bool:
-        """Basic safety check for obviously harmful content"""
+        """
+        Basic safety check for obviously harmful content using pattern matching.
+        
+        Args:
+            question: User's question to check for harmful content
+            
+        Returns:
+            bool: True if harmful content detected, False otherwise
+        """
         question_lower = question.lower().strip()
         for pattern in self.harmful_patterns:
             if re.search(pattern, question_lower):
@@ -39,18 +61,40 @@ class ProductionEnhancements:
         return False
     
     def log_interaction(self, question: str, response: str, user_id: str = "default"):
-        """Log user interaction for analysis"""
+        """
+        Log user interaction for analysis and record conversation metrics.
+        
+        Args:
+            question: User's question
+            response: System's response
+            user_id: User identifier for logging
+        """
         self.logger.log_interaction(question, response, user_id)
         self.metrics.record_interaction(question, response)
 
 class RateLimiter:
     def __init__(self, max_requests: int = 10, time_window: int = 60):
+        """
+        Initialize rate limiter with configurable limits.
+        
+        Args:
+            max_requests: Maximum number of requests allowed per time window
+            time_window: Time window in seconds for rate limiting
+        """
         self.max_requests = max_requests
         self.time_window = time_window  # seconds
         self.request_log: Dict[str, List[datetime]] = {}
     
     def is_allowed(self, user_id: str) -> bool:
-        """Check if user is within rate limits"""
+        """
+        Check if user is within rate limits and update request log.
+        
+        Args:
+            user_id: Unique identifier for the user
+            
+        Returns:
+            bool: True if request is allowed, False if rate limited
+        """
         now = datetime.now()
         
         if user_id not in self.request_log:
@@ -72,6 +116,11 @@ class RateLimiter:
 
 class ConversationMetrics:
     def __init__(self):
+        """
+        Initialize conversation metrics tracking.
+        
+        Sets up counters and storage for interaction analytics.
+        """
         self.interactions = []
         self.conversation_starts = 0
         self.total_questions = 0
@@ -79,7 +128,13 @@ class ConversationMetrics:
         self.topic_switches = 0
     
     def record_interaction(self, question: str, response: str):
-        """Record metrics for each interaction"""
+        """
+        Record metrics for each user-tutor interaction.
+        
+        Args:
+            question: User's question text
+            response: System's response text
+        """
         self.total_questions += 1
         self.interactions.append({
             'timestamp': datetime.now(),
@@ -95,7 +150,12 @@ class ConversationMetrics:
         )
     
     def get_summary(self) -> Dict:
-        """Get metrics summary"""
+        """
+        Get comprehensive metrics summary for analytics.
+        
+        Returns:
+            Dict: Summary statistics including averages, totals, and recent activity
+        """
         if not self.interactions:
             return {"status": "No interactions recorded"}
         
@@ -114,10 +174,22 @@ class ConversationMetrics:
 
 class EnhancedLogger:
     def __init__(self):
+        """
+        Initialize enhanced logging system.
+        
+        Sets up file-based logging for user interactions and system events.
+        """
         self.log_file = "tutor_interactions.log"
     
     def log_interaction(self, question: str, response: str, user_id: str):
-        """Log interaction to file"""
+        """
+        Log user interaction to file with timestamp and user information.
+        
+        Args:
+            question: User's question (truncated to 100 chars)
+            response: System's response (truncated to 100 chars)
+            user_id: User identifier for tracking
+        """
         timestamp = datetime.now().isoformat()
         log_entry = f"[{timestamp}] User: {user_id} | Q: {question[:100]}... | R: {response[:100]}...\n"
         
@@ -148,7 +220,14 @@ class ProductionTutorEngine:
     
     def get_guidance(self, user_question: str, user_id: str = "default") -> str:
         """
-        Enhanced guidance method with production features
+        Enhanced guidance method with production features including rate limiting and safety checks.
+        
+        Args:
+            user_question: User's question or input
+            user_id: User identifier for rate limiting and logging
+            
+        Returns:
+            str: Generated tutor response with safety and rate limiting applied
         """
         # 1. Rate limiting check
         if not self.enhancements.is_request_allowed(user_id):
@@ -192,7 +271,12 @@ class ProductionTutorEngine:
         return response
     
     def _get_conversation_context(self) -> str:
-        """Get recent conversation context for follow-up detection"""
+        """
+        Get recent conversation context for follow-up detection and continuity.
+        
+        Returns:
+            str: Formatted string containing recent conversation history
+        """
         if not self.conversation_history:
             return ""
         
@@ -207,17 +291,31 @@ class ProductionTutorEngine:
         return " | ".join(context_parts)
     
     def reset(self):
-        """Reset conversation state"""
+        """
+        Reset conversation state and clear history.
+        
+        Delegates to base engine reset and clears conversation history.
+        """
         self.engine.reset()
         self.conversation_history = []
     
     def get_metrics(self) -> Dict:
-        """Get conversation metrics"""
+        """
+        Get comprehensive conversation metrics and analytics.
+        
+        Returns:
+            Dict: Metrics summary including interaction counts, averages, and trends
+        """
         return self.enhancements.metrics.get_summary()
 
 # Test the production enhancements
 def test_production_features():
-    """Test production enhancement features"""
+    """
+    Test all production enhancement features including rate limiting, safety checks, and metrics.
+    
+    Runs comprehensive tests to validate rate limiter, content safety detection,
+    and metrics collection functionality.
+    """
     print("Testing Production Enhancement Features...")
     
     # Test rate limiter

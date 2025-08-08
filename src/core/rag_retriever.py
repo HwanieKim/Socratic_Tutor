@@ -31,6 +31,12 @@ class RAGRetriever:
     """Handles RAG retrieval and expert reasoning"""
     
     def __init__(self, index):
+        """
+        Initialize RAG retriever with hybrid search capabilities.
+        
+        Args:
+            index: Vector store index for document retrieval
+        """
         self.index = index
         self.llm_reasoning = GoogleGenAI(
             model_name=config.GEMINI_REASONING_MODEL_NAME,
@@ -46,6 +52,12 @@ class RAGRetriever:
         self._create_json_generator_engine("en")
 
     def _create_json_generator_engine(self, language: str = "en"):
+        """
+        Create JSON generator engine for structured output generation.
+        
+        Args:
+            language: Language code for prompt localization
+        """
         from .prompts_template import get_json_context_prompt
 
         self.json_generator_engine = RetrieverQueryEngine.from_args(
@@ -55,7 +67,12 @@ class RAGRetriever:
         )
     
     def _setup_retrievers(self):
-        """Setup hybrid retrieval system"""
+        """
+        Setup hybrid retrieval system with vector and BM25 retrievers.
+        
+        Creates both vector and BM25 retrievers for comprehensive document retrieval.
+        Falls back to vector-only retrieval if BM25 is unavailable.
+        """
         try:
             # Vector retriever
             vector_retriever = VectorIndexRetriever(
@@ -167,7 +184,17 @@ class RAGRetriever:
             return user_question
 
     def _fallback_parse(self, raw_output: str, user_question: str, language: str = "en") -> ReasoningTriplet:
-        """Fallback parsing when JSON parsing fails"""
+        """
+        Fallback parsing when JSON parsing fails.
+        
+        Args:
+            raw_output: Raw LLM output to parse
+            user_question: Original user question
+            language: Language code for error handling
+            
+        Returns:
+            ReasoningTriplet: Parsed triplet or fallback triplet
+        """
         try:
             # Try to extract key components from raw output
             lines = raw_output.strip().split('\n')
@@ -210,7 +237,16 @@ class RAGRetriever:
             return self._create_fallback_triplet(user_question,language)
     
     def _create_fallback_triplet(self, user_question: str, language: str = "en") -> ReasoningTriplet:
-        """Create fallback triplet when all parsing fails"""
+        """
+        Create fallback triplet when all parsing fails.
+        
+        Args:
+            user_question: Original user question
+            language: Language code for localized error messages
+            
+        Returns:
+            ReasoningTriplet: Safe fallback triplet with error messages
+        """
         fallback_messages = {
             "en": {
             "reasoning": "Unable to process the information properly.",

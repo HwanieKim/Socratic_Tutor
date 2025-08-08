@@ -43,6 +43,17 @@ class ScaffoldingSystem:
             stuck_count: int,
             triplet: ReasoningTriplet
     ) -> ScaffoldingDecision:
+        """
+        Decides the appropriate scaffolding strategy based on student's learning level and performance.
+        
+        Args:
+            learning_level: Current learning level of the student (L0-L4)
+            stuck_count: Number of times student has been stuck on this question
+            triplet: The question-reasoning-answer triplet for context
+            
+        Returns:
+            ScaffoldingDecision: Contains strategy name, description, reason, and content
+        """
         if stuck_count <1: 
             stuck_count = 1
 

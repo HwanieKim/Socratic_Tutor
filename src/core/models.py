@@ -13,6 +13,12 @@ class ReasoningTriplet(BaseModel):
 
 # Evaluation Models
 class MultidimensionalScores(BaseModel):
+    """
+    Multidimensional scoring model for evaluating student answers across different criteria.
+    
+    Provides weighted scoring across five dimensions: conceptual accuracy, reasoning coherence,
+    evidence utilization, conceptual integration, and clarity of expression.
+    """
     conceptual_accuracy: float = Field(
         ge=0.0, le=1.0, 
         description="How well the student's answer uses the key concept correctly (30% weight)"
@@ -35,7 +41,12 @@ class MultidimensionalScores(BaseModel):
     )
     @property
     def weighted_overall_score(self) -> float:
-        """Calculate the average of all scores (weighted)"""
+        """
+        Calculate the weighted overall score using predefined weights.
+        
+        Returns:
+            float: Weighted average score (0.0-1.0)
+        """
         return (
             self.conceptual_accuracy * 0.30 +
             self.reasoning_coherence * 0.25 +
@@ -46,7 +57,12 @@ class MultidimensionalScores(BaseModel):
     
     @property
     def multidimensional_average(self) -> float:
-        """Calculate the average of all scores without weights"""
+        """
+        Calculate the unweighted average of all dimensional scores.
+        
+        Returns:
+            float: Simple arithmetic average of all five dimensions (0.0-1.0)
+        """
         return (
             self.conceptual_accuracy +
             self.reasoning_coherence +
@@ -55,7 +71,13 @@ class MultidimensionalScores(BaseModel):
             self.clarity_of_expression
         ) / 5
     def get_weighted_breakdown(self) -> Dict[str, float]:
-        """가중치 적용된 세부 점수 분석"""
+        """
+        Get detailed breakdown of weighted scores for each dimension.
+        
+        Returns:
+            Dict[str, float]: Dictionary containing weighted scores for each dimension
+                            and the total weighted score
+        """
         return {
             "conceptual_accuracy_weighted": self.conceptual_accuracy * 0.30,
             "reasoning_coherence_weighted": self.reasoning_coherence * 0.25,
@@ -67,7 +89,12 @@ class MultidimensionalScores(BaseModel):
 
 # - Multidimensional evaluation scores for student's answer
 class EnhancedAnswerEvaluation(BaseModel):
-    """Pure evaluation of student's answer quality (separated from scaffolding)"""
+    """
+    Comprehensive evaluation model for student answers with multidimensional scoring.
+    
+    Combines binary evaluation with detailed multidimensional scores to provide
+    nuanced assessment of student understanding and reasoning quality.
+    """
     binary_evaluation: Literal[
         "correct",
         "partially_correct", 
@@ -91,6 +118,12 @@ class EnhancedAnswerEvaluation(BaseModel):
     )
     @property
     def binary_score(self) -> float:
+        """
+        Convert binary evaluation to numeric score.
+        
+        Returns:
+            float: Numeric score (0.0-1.0) based on binary evaluation category
+        """
         binary_mapping ={
             "correct":1.0,
             "partially_correct":0.7,
@@ -103,6 +136,12 @@ class EnhancedAnswerEvaluation(BaseModel):
     
     @property
     def overall_score(self) -> float:
+        """
+        Get the overall weighted multidimensional score.
+        
+        Returns:
+            float: Weighted overall score from multidimensional evaluation
+        """
         return self.multidimensional_scores.weighted_overall_score
     
     def get_detailed_breakdown(self)-> Dict[str, float]:
@@ -138,6 +177,12 @@ class LearningLevel (str, Enum):
     L4_CONCEPTUAL_TRANSFER = "L4_conceptual_transfer"
 
 class LevelAdjustment(BaseModel):
+    """
+    Records when and why a student's learning level was adjusted.
+    
+    Tracks level changes with reasoning and evaluation scores for analytics
+    and adaptive learning progression.
+    """
     previous_level: LearningLevel
     new_level: LearningLevel
     reason: str = Field(
@@ -151,6 +196,12 @@ class LevelAdjustment(BaseModel):
         )
 
 class SessionLearningProfile(BaseModel):
+    """
+    Tracks student learning progression and performance throughout a session.
+    
+    Manages adaptive level adjustments based on performance patterns,
+    maintains evaluation history, and provides insights for personalized tutoring.
+    """
 
     current_level: LearningLevel  = Field( default=LearningLevel.L2_STRUCTURED_COMPREHENSION)
 
@@ -174,6 +225,12 @@ class SessionLearningProfile(BaseModel):
     level_stability_count: int = Field(default=0, description="How many evaluations at current level")
 
     def add_evaluation_score(self,evaluation:EnhancedAnswerEvaluation) -> None:
+        """
+        Add new evaluation score and update learning profile metrics.
+        
+        Args:
+            evaluation: Enhanced evaluation containing multidimensional scores
+        """
         score = evaluation.overall_score
         self.recent_scores_history.append(score)
         self.total_interactions += 1 
@@ -186,6 +243,12 @@ class SessionLearningProfile(BaseModel):
         self.update_level(evaluation)
 
     def _update_performance_counters(self, score: float) -> None:
+        """
+        Update consecutive performance counters based on score thresholds.
+        
+        Args:
+            score: Evaluation score to analyze for performance trends
+        """
         HIGH_THRESHOLD = 0.75
         LOW_THRESHOLD = 0.45
 
@@ -199,6 +262,12 @@ class SessionLearningProfile(BaseModel):
             pass
 
     def should_level_up(self) -> bool:
+        """
+        Determine if student should advance to next learning level.
+        
+        Returns:
+            bool: True if criteria for level advancement are met
+        """
         if self.current_level == LearningLevel.L4_CONCEPTUAL_TRANSFER:
             return False
         
@@ -215,6 +284,12 @@ class SessionLearningProfile(BaseModel):
         return False
     
     def should_level_down(self) -> bool:
+        """
+        Determine if student should move down to previous learning level.
+        
+        Returns:
+            bool: True if criteria for level reduction are met
+        """
         if self.current_level == LearningLevel.L0_PRE_CONCEPTUAL:
             return False
         
@@ -332,7 +407,12 @@ class SessionLearningProfile(BaseModel):
         self.level_stability_count = 0
     
     def get_level_description(self) -> str:
-        """Get description of current learning level"""
+        """
+        Get human-readable description of current learning level.
+        
+        Returns:
+            str: Descriptive text explaining the current learning level
+        """
         descriptions = {
             LearningLevel.L0_PRE_CONCEPTUAL: "Building basic familiarity with concepts",
             LearningLevel.L1_FAMILIARIZATION: "Developing initial understanding",
@@ -343,7 +423,13 @@ class SessionLearningProfile(BaseModel):
         return descriptions.get(self.current_level, "Developing understanding")
     
     def get_performance_insights(self) -> Dict:
-        """Get comprehensive performance insights for the session"""
+        """
+        Get comprehensive performance insights and analytics for the session.
+        
+        Returns:
+            Dict: Comprehensive analytics including performance trends, level history,
+                 and session statistics
+        """
         try:
             insights = {
                 "current_level": self.current_level.value,
@@ -397,7 +483,12 @@ class SessionLearningProfile(BaseModel):
             return {"error": f"Could not generate insights: {str(e)}"}  
            
     def _calculate_session_duration(self) -> float:
-        """Calculate session duration in minutes"""
+        """
+        Calculate total session duration in minutes.
+        
+        Returns:
+            float: Session duration in minutes, rounded to 1 decimal place
+        """
         try:
             duration = (datetime.now() - self.session_start_time).total_seconds() / 60
             return round(duration, 1)
@@ -405,7 +496,12 @@ class SessionLearningProfile(BaseModel):
             return 0.0
     
     def _calculate_trend(self) -> str:
-        """Calculate performance trend from recent scores"""
+        """
+        Calculate performance trend from recent scores.
+        
+        Returns:
+            str: Performance trend ("improving", "declining", "stable", or "insufficient_data")
+        """
         if len(self.recent_scores_history) < 2:
             return "insufficient_data"
         
@@ -427,8 +523,12 @@ class SessionLearningProfile(BaseModel):
         else:
             return "stable"
 class ScaffoldingDecision(BaseModel):
-
-    """Separate scaffolding strategy decision"""
+    """
+    Represents a scaffolding strategy decision for struggling students.
+    
+    Contains information about the chosen scaffolding strategy, reasoning,
+    and optional content to help guide student learning.
+    """
     scaffold_strategy: str = Field(
         description=(
             "The type of scaffolding strategy to be executed. One of 20 possible values, such as:\n"

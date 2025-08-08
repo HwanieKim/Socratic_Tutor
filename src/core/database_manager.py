@@ -20,6 +20,11 @@ class DatabaseManager:
     """Railway PostgreSQL database management"""
 
     def __init__(self):
+        """
+        Initialize database connection and create necessary tables.
+        
+        Sets up database URL from environment variables and initializes all required tables.
+        """
         self.database_url = os.getenv("DATABASE_URL")
         if not self.database_url:
             # 개발 환경용 기본값
@@ -29,13 +34,23 @@ class DatabaseManager:
         self._init_tables()
     
     def get_connection(self):
-        """DB 연결 생성"""
+        """
+        Create and return database connection with RealDictCursor.
+        
+        Returns:
+            psycopg2.connection: Database connection object
+        """
         return psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
     
     # database_manager.py 파일에서 _init_tables 함수를 이 코드로 교체하세요.
 
     def _init_tables(self):
-        """테이블 초기화"""
+        """
+        Initialize database tables for users, documents, conversations, and indexes.
+        
+        Creates all necessary tables if they don't exist. Falls back to file-based storage
+        in development environment if database connection fails.
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -110,7 +125,15 @@ class DatabaseManager:
                 logger.info("Falling back to file-based storage for development")
     
     def create_or_get_user(self, session_id: str) -> Dict:
-        """사용자 생성 또는 조회"""
+        """
+        Create new user or retrieve existing user by session ID.
+        
+        Args:
+            session_id: Unique session identifier
+            
+        Returns:
+            Dict: User information including id, session_id, created_at, last_active
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -151,7 +174,16 @@ class DatabaseManager:
             }
     
     def save_uploaded_document(self, session_id: str, file_info: Dict) -> int:
-        """업로드된 문서 정보 저장"""
+        """
+        Save uploaded document information to database.
+        
+        Args:
+            session_id: User's session identifier
+            file_info: Dictionary containing file metadata
+            
+        Returns:
+            int: Document ID if successful, -1 if failed
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -180,7 +212,15 @@ class DatabaseManager:
             return -1
     
     def get_user_documents(self, session_id: str) -> List[Dict]:
-        """사용자의 문서 목록 조회"""
+        """
+        Retrieve list of documents for a specific user.
+        
+        Args:
+            session_id: User's session identifier
+            
+        Returns:
+            List[Dict]: List of document metadata dictionaries
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -198,7 +238,17 @@ class DatabaseManager:
             return []
     
     def mark_documents_indexed(self, session_id: str, index_path: str, file_hashes: List[str]) -> bool:
-        """문서들을 인덱싱됨으로 표시"""
+        """
+        Mark documents as indexed in the database.
+        
+        Args:
+            session_id: User's session identifier
+            index_path: Path to the created index
+            file_hashes: List of file hashes that were indexed
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -244,7 +294,15 @@ class DatabaseManager:
             return False
     
     def get_active_index(self, session_id: str) -> Optional[Dict]:
-        """사용자의 활성 인덱스 정보 조회"""
+        """
+        Retrieve active index information for a user.
+        
+        Args:
+            session_id: User's session identifier
+            
+        Returns:
+            Optional[Dict]: Index metadata dictionary or None if not found
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -262,7 +320,18 @@ class DatabaseManager:
             return None
     
     def save_conversation(self, session_id: str, user_message: str, tutor_response: str, context_used: str = "") -> bool:
-        """대화 히스토리 저장"""
+        """
+        Save conversation turn to database.
+        
+        Args:
+            session_id: User's session identifier
+            user_message: User's input message
+            tutor_response: Tutor's response message
+            context_used: Context information used for response
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -279,7 +348,16 @@ class DatabaseManager:
             return False
     
     def get_conversation_history(self, session_id: str, limit: int = 10) -> List[Dict]:
-        """대화 히스토리 조회"""
+        """
+        Retrieve conversation history for a user.
+        
+        Args:
+            session_id: User's session identifier
+            limit: Maximum number of conversations to retrieve
+            
+        Returns:
+            List[Dict]: List of conversation dictionaries ordered by timestamp
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -297,7 +375,12 @@ class DatabaseManager:
             return []
     
     def cleanup_old_data(self, days_old: int = 30):
-        """오래된 데이터 정리"""
+        """
+        Clean up old data from database.
+        
+        Args:
+            days_old: Number of days after which data is considered old
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -324,7 +407,15 @@ class DatabaseManager:
             logger.error(f"Data cleanup failed: {e}")
 
     def calculate_file_hash(self, file_path: str) -> str:
-        """파일 해시 계산"""
+        """
+        Calculate MD5 hash of a file for deduplication.
+        
+        Args:
+            file_path: Path to the file to hash
+            
+        Returns:
+            str: MD5 hash of the file or fallback hash if file read fails
+        """
         hash_md5 = hashlib.md5()
         try:
             with open(file_path, "rb") as f:
@@ -337,7 +428,15 @@ class DatabaseManager:
 
         
     def get_index_by_id(self, index_id: int) -> Optional[Dict]:
-        """인덱스 ID로 인덱스 정보 조회"""
+        """
+        Retrieve index information by ID.
+        
+        Args:
+            index_id: Index identifier
+            
+        Returns:
+            Optional[Dict]: Index metadata dictionary or None if not found
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -374,7 +473,16 @@ class DatabaseManager:
             return []
     
     def set_active_index(self, session_id: str, index_id: int):
-        """특정 인덱스를 활성 인덱스로 설정"""
+        """
+        Set a specific index as the active index for a user.
+        
+        Args:
+            session_id: User's session identifier
+            index_id: Index ID to set as active
+            
+        Raises:
+            Exception: If setting active index fails
+        """
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:

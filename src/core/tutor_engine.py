@@ -69,6 +69,12 @@ class TutorEngine:
         print(f"✅ TutorEngine for session {self.session_id} initialized (lightweight). Engine will load on first use.")
     
     async def initialize_engine(self):
+        """
+        Initialize and warm up the tutor engine asynchronously.
+        
+        Loads indexes, configures settings, and prepares all modules for tutoring.
+        Should be called before first use for optimal performance.
+        """
         await self._ensure_engine_ready()
         if self._is_engine_ready:
             print("✅ Engine warm-up successful. Ready for requests.")
@@ -77,6 +83,12 @@ class TutorEngine:
             
             
     async def _ensure_engine_ready(self):
+        """
+        Ensure the engine is fully ready for tutoring requests.
+        
+        Performs lazy initialization including index loading, module setup,
+        and configuration. Thread-safe with async lock.
+        """
         async with self._lock:
             if self._is_engine_ready:
                 return
@@ -138,7 +150,12 @@ class TutorEngine:
     #         self.index = None
     
     def _initialize_modules(self):
-        """Initialize specialized modules"""
+        """
+        Initialize all specialized tutoring modules.
+        
+        Creates instances of memory manager, intent classifier, RAG retriever,
+        answer evaluator, dialogue generator, and scaffolding system.
+        """
         self.memory_manager = MemoryManager(token_limit=3000)
         self.intent_classifier = IntentClassifier()
         self.rag_retriever = RAGRetriever(self.index)
@@ -148,7 +165,14 @@ class TutorEngine:
         print("✅ TutorEngine modules initialized successfully", flush=True)
     
     def _configure_global_settings(self):
-        """Configure global LlamaIndex settings"""
+        """
+        Configure global LlamaIndex settings for LLM and embedding models.
+        
+        Sets up Google GenAI for reasoning tasks and Voyage AI for embeddings.
+        
+        Raises:
+            Exception: If API keys are missing or configuration fails
+        """
         try:
             # Set global LLM (for reasoning tasks)
             Settings.llm = GoogleGenAI(
@@ -171,6 +195,18 @@ class TutorEngine:
                 
         
     def _load_index_from_path_sync(self,index_path:str):
+        """
+        Synchronously load vector index from specified path.
+        
+        Args:
+            index_path: Filesystem path to the stored index
+            
+        Returns:
+            VectorStoreIndex: Loaded index object
+            
+        Raises:
+            Exception: If index loading fails or path is invalid
+        """
         print(f"Starting to load index from path: {index_path}", flush=True)
         try:
 
@@ -183,7 +219,21 @@ class TutorEngine:
             raise
 
     async def _load_index_from_path_async(self, index_path: str):
-        """[비동기] 경로에서 인덱스를 불러옵니다. 느린 I/O 작업을 별도 스레드에서 실행합니다."""
+        """
+        Asynchronously load vector index from specified path.
+        
+        Executes slow I/O operations in a separate thread to avoid blocking
+        the main event loop.
+        
+        Args:
+            index_path: Filesystem path to the stored index
+            
+        Returns:
+            VectorStoreIndex: Loaded index object
+            
+        Raises:
+            Exception: If index loading fails or path is invalid
+        """
         print(f"Starting to load index from path: {index_path}")
         
         loop = asyncio.get_running_loop()
@@ -203,16 +253,17 @@ class TutorEngine:
 
     async def get_guidance(self, user_question: str, language: str = "en") -> dict:
         """
-        Main entry point for getting tutoring guidance
+        Main entry point for getting tutoring guidance following SOAR pattern.
         
-        This is the central orchestrator that coordinates all modules
-        following the SOAR pattern.
+        This is the central orchestrator that coordinates all modules:
+        State → Operator → And → Result
         
         Args:
             user_question: Student's question or response
+            language: Language code for internationalization
             
         Returns:
-            str: Tutor's response
+            dict: Response containing type and content/key for UI handling
         """
 
         # Check if tutoring can start (both steps completed)
@@ -281,13 +332,17 @@ class TutorEngine:
 
     def _pipeline_new_question(self, user_question: str, language: str = "en") -> str:
         """
-        Pipeline for handling new questions
+        Pipeline for handling new questions from students.
+        
+        Performs RAG retrieval, generates expert reasoning, validates knowledge
+        sufficiency, and creates initial Socratic dialogue response.
         
         Args:
             user_question: New question from student
+            language: Language code for response generation
             
         Returns:
-            str: Tutor response
+            str: Generated Socratic tutor response
         """
         try:
             # Reset stuck count for new question
@@ -342,13 +397,17 @@ class TutorEngine:
 
     def _pipeline_follow_up(self, user_question: str, language: str = "en") -> str:
         """
-        Pipeline for handling follow-up responses
+        Pipeline for handling follow-up responses from students.
+        
+        Classifies follow-up type (answer vs meta_question) and routes to
+        appropriate handling logic with cached context.
         
         Args:
             user_question: Follow-up response from student
+            language: Language code for response generation
             
         Returns:
-            str: Tutor response
+            str: Contextually appropriate tutor response
         """
         try:
             # Check if we have cached context
@@ -381,15 +440,19 @@ class TutorEngine:
 
     def _handle_student_answer(self, student_answer: str, triplet: ReasoningTriplet, source_nodes: list, language: str) -> str:
         """
-        Handle when student provides an answer attempt
+        Handle when student provides an answer attempt.
+        
+        Evaluates student's answer against expert reasoning, updates learning
+        profile, determines adaptive strategy, and generates appropriate response.
         
         Args:
-            student_answer: Student's answer
-            triplet: Cached expert reasoning
-            source_nodes: Cached source nodes
+            student_answer: Student's answer attempt
+            triplet: Cached expert reasoning triplet
+            source_nodes: Cached source document nodes
+            language: Language code for evaluation and response
             
         Returns:
-            str: Tutor response with evaluation
+            str: Tutor response with evaluation and guidance
         """
         try:
             # Reset stuck count since student provided an answer
@@ -442,13 +505,16 @@ class TutorEngine:
 
     def _determine_adaptive_strategy(self, evaluation: EnhancedAnswerEvaluation) -> str:
         """
-        Determine adaptive strategy based on evaluation
+        Determine adaptive tutoring strategy based on evaluation and learning level.
+        
+        Selects appropriate pedagogical strategy considering student's current
+        learning level, evaluation scores, and performance patterns.
         
         Args:
-            evaluation: Enhanced answer evaluation object
+            evaluation: Enhanced answer evaluation with multidimensional scores
             
         Returns:
-            str: Adaptive strategy type
+            str: Selected adaptive strategy identifier
         """
         current_level= self.learning_profile.current_level
         overall_score = evaluation.overall_score
@@ -496,6 +562,16 @@ class TutorEngine:
         return strategy 
 
     def get_learning_insights(self)->Dict:
+        """
+        Get comprehensive learning analytics and insights for current session.
+        
+        Combines learning profile data with session information to provide
+        detailed performance analytics and progression tracking.
+        
+        Returns:
+            Dict: Comprehensive learning insights including level, performance,
+                 trends, and session statistics
+        """
         try:
             insights = self.learning_profile.get_performance_insights()
 
@@ -524,13 +600,17 @@ class TutorEngine:
             }
     def _handle_meta_question(self, triplet: ReasoningTriplet, language: str = "en") -> str:
         """
-        Handle when student asks for help or expresses confusion
+        Handle when student asks for help or expresses confusion.
+        
+        Increments stuck count, determines appropriate scaffolding strategy
+        based on learning level, and generates helpful guidance.
         
         Args:
-            triplet: Cached expert reasoning
+            triplet: Cached expert reasoning triplet for context
+            language: Language code for response generation
             
         Returns:
-            str: Scaffolded help response
+            str: Scaffolded help response tailored to student's needs
         """
         try:
             # Increment stuck count for scaffolding
@@ -564,7 +644,12 @@ class TutorEngine:
             return get_ui_text("engine_step_by_step", language)
     
     def reset(self):
-        """Reset the entire tutoring session"""
+        """
+        Reset the entire tutoring session to initial state.
+        
+        Clears conversation memory, resets learning profile to default level,
+        and prepares for fresh tutoring session.
+        """
         try:
             self.memory_manager.reset_session()
             self.learning_profile = SessionLearningProfile()  # Reset learning profile
@@ -574,7 +659,16 @@ class TutorEngine:
             print(f"Error resetting session: {e}")
     
     def get_session_summary(self) -> dict:
-        """Get summary of current tutoring session"""
+        """
+        Get comprehensive summary of current tutoring session.
+        
+        Combines memory statistics, learning insights, and adaptive features
+        to provide complete session overview for analytics.
+        
+        Returns:
+            dict: Session summary including memory stats, learning profile,
+                 and adaptive tutoring metrics
+        """
         try:
             memory_summary = self.memory_manager.get_session_summary()
             learning_insights = self.get_learning_insights()
@@ -592,7 +686,13 @@ class TutorEngine:
             return {"error": "Unable to generate session summary"}
     
     def get_memory_stats(self) -> dict:
-        """Get memory usage statistics"""
+        """
+        Get detailed memory usage statistics for current session.
+        
+        Returns:
+            dict: Memory usage metrics including token counts, message counts,
+                 and memory efficiency statistics
+        """
         try:
             return self.memory_manager.get_memory_usage_stats()
             
@@ -603,13 +703,17 @@ class TutorEngine:
     # Railway deployment methods for file upload and index management
     
     def upload_files(self, uploaded_files) -> str:
-        """Upload files to Railway Volume and save metadata to database
+        """
+        Upload files to Railway Volume and save metadata to database.
+        
+        Handles file deduplication using hash-based naming, saves files to
+        user-specific directories, and stores metadata for indexing.
 
         Args:
-            uploaded_files: List of uploaded file objects from Gradio
+            uploaded_files: List of uploaded file objects from Gradio interface
             
         Returns:
-            str: Upload status message
+            str: Upload status message key for i18n translation
         """
         try:
             if not uploaded_files:
@@ -658,10 +762,14 @@ class TutorEngine:
             return "engine_upload_failed_simple"
     
     async def create_user_index(self) -> AsyncGenerator[str, None]:
-        """Create user-specific index from uploaded documents
+        """
+        Create user-specific vector index from uploaded documents.
         
-        Returns:
-            str: Index creation status message
+        Processes uploaded PDFs through LlamaParse, creates multimodal vector
+        index, updates database records, and reinitializes engine modules.
+        
+        Yields:
+            dict: Progress updates with i18n keys and parameters for UI display
         """
         try:
             # Get uploaded documents from database
@@ -719,10 +827,12 @@ class TutorEngine:
                 }
             }
     def get_user_documents(self) -> List[Dict]:
-        """Get list of user's uploaded documents
+        """
+        Get list of user's uploaded documents with metadata.
         
         Returns:
-            List[Dict]: List of document metadata
+            List[Dict]: List of document metadata including filenames,
+                       hash values, file sizes, and indexing status
         """
         try:
             return self.db_manager.get_user_documents(self.session_id)
@@ -731,10 +841,12 @@ class TutorEngine:
             return []
     
     def get_session_info(self) -> Dict:
-        """Get session information including upload/index status
+        """
+        Get comprehensive session information including setup status.
         
         Returns:
-            Dict: Session information
+            Dict: Session information including document counts, index status,
+                 engine readiness, and document metadata for UI display
         """
         try:
             documents = self.get_user_documents()
@@ -753,12 +865,13 @@ class TutorEngine:
             return {'error': str(e)}
     
     def save_conversation(self, user_message: str, tutor_response: str, context_used: str = ""):
-        """Save conversation to database for history tracking
+        """
+        Save conversation turn to database for history tracking and analytics.
         
         Args:
-            user_message: User's message
-            tutor_response: Tutor's response
-            context_used: Context information used in response
+            user_message: Student's input message
+            tutor_response: Generated tutor response
+            context_used: Context information used in generating response
         """
         try:
             self.db_manager.save_conversation(
@@ -771,15 +884,25 @@ class TutorEngine:
             print(f"Failed to save conversation: {e}")
     
     def is_ready_for_tutoring(self) -> bool:
-        """Check if engine is ready for tutoring
+        """
+        Check if engine is fully ready for tutoring interactions.
         
         Returns:
-            bool: True if engine has index and modules initialized
+            bool: True if engine has loaded index and initialized all modules
         """
         return self.index is not None and self._is_engine_ready
     
     def get_tutoring_status(self) -> Dict[str, any]:
-        """Get detailed status of tutoring readiness, prioritizing engine state."""
+        """
+        Get detailed status of tutoring readiness, prioritizing engine state.
+        
+        Provides comprehensive status including upload completion, index creation,
+        engine readiness, and learning profile information for UI display.
+        
+        Returns:
+            Dict[str, any]: Detailed status information including step completion,
+                           document counts, engine state, and learning metrics
+        """
         try:
             # The primary indicator of readiness is a fully loaded engine.
             if self._is_engine_ready and self.index is not None:
@@ -830,15 +953,27 @@ class TutorEngine:
             }
 
     def can_start_tutoring(self) -> bool:
-        """Check if tutoring can start (both steps completed)"""
+        """
+        Check if tutoring can start (both upload and indexing steps completed).
+        
+        Returns:
+            bool: True if both document upload and index creation are complete
+        """
         status = self.get_tutoring_status()
         return status['step1_upload_complete'] and status['step2_index_complete']
 
     def find_matching_index(self, file_hashes: list[str]) -> Optional[Dict]:
-        """Find the best matching index for the current session
+        """
+        Find the best matching existing index for given file hashes.
         
+        Searches for exact matches first, then looks for superset matches
+        to enable index reuse and avoid redundant processing.
+        
+        Args:
+            file_hashes: List of file hash identifiers to match against
+            
         Returns:
-            Optional[Dict]: Metadata of the matching index, or None if not found
+            Optional[Dict]: Metadata of best matching index, or None if not found
         """
         if not file_hashes:
             return None
@@ -878,7 +1013,18 @@ class TutorEngine:
 
 
     async def load_existing_index(self, index_id: int) -> dict:
-        """Load an existing index by ID and prepares the engine for tutoring."""
+        """
+        Load an existing index by ID and prepare engine for tutoring.
+        
+        Loads specified index into memory, initializes all dependent modules,
+        sets engine as ready, and updates database to mark index as active.
+        
+        Args:
+            index_id: Database ID of the index to load
+            
+        Returns:
+            dict: Load status with i18n key and parameters for UI feedback
+        """
         try:
             index_info = self.db_manager.get_index_by_id(index_id)
             if not index_info:

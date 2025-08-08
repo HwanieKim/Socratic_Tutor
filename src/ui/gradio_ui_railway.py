@@ -38,9 +38,14 @@ current_session_id = None
 
 def get_or_create_session(session_id: str = None, lang: str = "en") -> TutorEngine:
     """
-    Gets the TutorEngine for a given session_id.
-    If no session_id is provided, it returns the default engine instance.
-    If the session is not found, it creates a new one.
+    Get or create a TutorEngine instance for the given session ID.
+    
+    Args:
+        session_id: Unique session identifier. If None, uses current global session
+        lang: Language code for the session
+        
+    Returns:
+        TutorEngine: The TutorEngine instance for the session, or None if creation fails
     """
     global user_sessions, current_session_id
     
@@ -67,8 +72,18 @@ def get_or_create_session(session_id: str = None, lang: str = "en") -> TutorEngi
 
 def handle_file_upload_staging(files, lang='en'):
     """
-    Handles file upload by staging them in a temporary state
-    without saving them to the database immediately.
+    Handle file upload by staging them temporarily without database save.
+    
+    Calculates file hashes, checks for existing matching indexes, and prepares
+    files for user confirmation before actual upload.
+    
+    Args:
+        files: List of uploaded file objects from Gradio
+        lang: Language code for UI messages
+        
+    Returns:
+        tuple: (status_message, load_button_visibility, create_button_visibility, 
+                matched_index_id, staged_files)
     """
     global current_session_id
     if not files:
@@ -114,8 +129,17 @@ def handle_file_upload_staging(files, lang='en'):
     
 async def save_and_create_index(staged_files, lang='en'):
     """
-    Saves the staged files to the database first,
-    then creates an index from them. This is the user-confirmed action.
+    Save staged files to database and create vector index from them.
+    
+    This is the user-confirmed action that actually persists files and
+    creates the searchable index for tutoring.
+    
+    Args:
+        staged_files: List of staged file objects to process
+        lang: Language code for UI messages
+        
+    Yields:
+        str: Progress status messages for UI display
     """
     global current_session_id
     
@@ -147,6 +171,18 @@ async def save_and_create_index(staged_files, lang='en'):
 
 
 def get_session_status(lang='en'):
+    """
+    Get formatted session status information for display.
+    
+    Retrieves current session information including document counts,
+    engine status, and creation time for UI display.
+    
+    Args:
+        lang: Language code for localized messages
+        
+    Returns:
+        str: Formatted session status text
+    """
     global current_session_id
     if current_session_id is None: 
         return get_ui_text('no_active_session', lang)
@@ -173,6 +209,20 @@ def get_session_status(lang='en'):
         return get_ui_text('session_status_error', lang)
 
 async def get_tutor_response(user_input, conversation_history, lang):
+    """
+    Get tutor response for user input and update conversation history.
+    
+    Validates setup requirements, processes user input through the tutor engine,
+    and returns updated conversation with learning insights.
+    
+    Args:
+        user_input: User's question or response
+        conversation_history: Current conversation messages
+        lang: Language code for responses
+        
+    Returns:
+        tuple: (updated_conversation, cleared_input, learning_insights)
+    """
     global current_session_id
     if not user_input.strip(): return conversation_history, ""
 
@@ -222,8 +272,16 @@ async def get_tutor_response(user_input, conversation_history, lang):
 
 def new_session(lang='en'):
     """
-    Creates a new user session by generating a new UUID,
-    and creating a new TutorEngine instance for it.
+    Create a new user session with a unique ID.
+    
+    Generates a new UUID for the session and creates a fresh TutorEngine
+    instance to handle the new tutoring session.
+    
+    Args:
+        lang: Language code for UI messages
+        
+    Returns:
+        tuple: (empty_chat, session_created_message, empty_upload_status, empty_setup_status)
     """
     global current_session_id, user_sessions
     
@@ -238,6 +296,18 @@ def new_session(lang='en'):
     return [], session_created_msg, "", ""
 
 def reset_conversation(lang='en'):
+    """
+    Reset the current conversation while maintaining the session.
+    
+    Clears conversation history and resets the tutor engine state
+    while keeping the same session and index configuration.
+    
+    Args:
+        lang: Language code for UI messages
+        
+    Returns:
+        tuple: (empty_chat, reset_confirmation_message)
+    """
     engine = get_or_create_session(current_session_id, lang)
     if engine: engine.reset()
     return [], get_ui_text('conversation_reset', lang)
@@ -245,7 +315,18 @@ def reset_conversation(lang='en'):
 
 
 def check_and_update_ui_state(lang='en'):
-    """Always enable chat - let the chat handler deal with setup messages"""
+    """
+    Update UI state to enable chat input regardless of setup status.
+    
+    Always enables the chat input to allow users to interact with the system,
+    even if setup is not complete. The chat handler manages setup messages.
+    
+    Args:
+        lang: Language code for UI text
+        
+    Returns:
+        gr.update: Interactive textbox update for user input
+    """
     print(f"🔧 Enabling chat input for all states (lang: {lang})")
     
     return gr.update(
@@ -254,7 +335,19 @@ def check_and_update_ui_state(lang='en'):
     )
 
 def get_tutorial_message(step: int, lang='en') -> str:
-    """Get tutorial message for current step"""
+    """
+    Get tutorial message for the current setup step.
+    
+    Returns appropriate tutorial guidance based on the user's current
+    position in the setup process.
+    
+    Args:
+        step: Current step number in setup flow
+        lang: Language code for localized messages
+        
+    Returns:
+        str: Formatted tutorial message for the step
+    """
     if step == 1:
         return f"🚀 {get_ui_text('tutorial_step1_title', lang)}\n\n{get_ui_text('tutorial_step1_desc', lang)}"
     elif step == 2:
@@ -263,7 +356,18 @@ def get_tutorial_message(step: int, lang='en') -> str:
         return f"✅ {get_ui_text('tutorial_step3_title', lang)}\n\n{get_ui_text('tutorial_step3_desc', lang)}"
 
 def get_step_from_status(status: dict) -> int:
-    """Determine current step from engine status"""
+    """
+    Determine current setup step from engine status.
+    
+    Analyzes the engine status to determine what step the user
+    is currently on in the setup process.
+    
+    Args:
+        status: Status dictionary from TutorEngine
+        
+    Returns:
+        int: Current step number (1=upload, 2=index, 3=complete)
+    """
     if not status.get('step1_upload_complete', False):
         return 1
     elif not status.get('step2_index_complete', False):
@@ -272,7 +376,18 @@ def get_step_from_status(status: dict) -> int:
         return 3
 
 def is_chat_blocked(lang='en') -> tuple:
-    """Check if chat should be blocked and return status info"""
+    """
+    Check if chat should be blocked due to incomplete setup.
+    
+    Determines if the chat interface should be disabled based on
+    the current session setup status and returns appropriate messaging.
+    
+    Args:
+        lang: Language code for UI messages
+        
+    Returns:
+        tuple: (is_blocked_boolean, status_message)
+    """
     global current_session_id
     
     if not current_session_id:
@@ -293,6 +408,19 @@ def is_chat_blocked(lang='en') -> tuple:
         return False, get_ui_text("chat_enabled_ready", lang), step
 
 async def handle_load_index_click(index_id, lang='en'):
+    """
+    Handle loading of an existing index.
+    
+    Attempts to load a pre-existing document index for the current session
+    and returns status information about the loading process.
+    
+    Args:
+        index_id: ID of the index to load
+        lang: Language code for status messages
+        
+    Returns:
+        str: Formatted status message about index loading result
+    """
     engine = get_or_create_session(current_session_id, lang)
     if not index_id or not engine:
         return get_ui_text('index_load_error', lang)
@@ -318,7 +446,18 @@ async def handle_load_index_click(index_id, lang='en'):
 # --- [FINAL VERSION] Gradio Interface Creation ---
 
 def get_session_insights_display(lang='en'):
-    """Get formatted learning insights for display"""
+    """
+    Get formatted learning insights for display.
+    
+    Retrieves learning analytics from the current session including performance
+    metrics, level progression, and interaction statistics formatted for UI display.
+    
+    Args:
+        lang: Language code for localized text
+        
+    Returns:
+        str: Formatted markdown display of learning insights
+    """
     global current_session_id
     
     engine = get_or_create_session(current_session_id, lang)
@@ -396,7 +535,16 @@ def get_session_insights_display(lang='en'):
         return f"❌ {get_ui_text('insights_error', lang)}: {str(e)}"
 
 def create_gradio_interface():
-    """Create the main Gradio interface with learning insights"""
+    """
+    Create the main Gradio interface with learning insights and modal setup.
+    
+    Constructs the complete UI including the main application interface,
+    modal setup flow, event handlers, and styling. Integrates all UI
+    components with the tutoring system backend.
+    
+    Returns:
+        gr.Blocks: Complete Gradio interface ready for deployment
+    """
     
     # This CSS is the core of the manual modal implementation.
     css = """
@@ -549,7 +697,18 @@ def create_gradio_interface():
         
         # Language change handler
         def update_ui_language_and_state(lang):
-            """통합된 언어 변경 및 상태 업데이트 함수"""
+            """
+            Update all UI elements to reflect the selected language.
+            
+            Comprehensive language update handler that refreshes all UI text elements
+            including labels, headers, buttons, and modal content to the selected language.
+            
+            Args:
+                lang: Language code for localization
+                
+            Returns:
+                dict: Gradio update dictionary for all UI components
+            """
             # 채팅창의 현재 활성화 상태에 맞는 placeholder 설정
             chat_placeholder = get_ui_text('chat_enabled_ready', lang)
             
@@ -616,6 +775,18 @@ def create_gradio_interface():
 
         # Modal/Popup control functions
         def handle_next_step(current_step):
+            """
+            Handle modal step navigation.
+            
+            Updates step state and manages visibility of modal containers
+            for the multi-step setup process.
+            
+            Args:
+                current_step: Current step number in modal flow
+                
+            Returns:
+                dict: Updated step state and container visibility
+            """
             new_step = current_step + 1
             return {
                 step_state: new_step,
@@ -625,6 +796,15 @@ def create_gradio_interface():
             }
 
         def close_popup_and_reset():
+            """
+            Close the modal popup and reset to main application.
+            
+            Transitions from the modal setup flow to the main application
+            interface and resets modal state for future use.
+            
+            Returns:
+                dict: Updated visibility states for containers and reset modal state
+            """
             return {
                 popup_container: gr.update(visible=False),
                 main_app_container: gr.update(visible=True),
@@ -768,7 +948,13 @@ def create_gradio_interface():
 
 # --- Main function to launch the app (Unchanged) ---
 def main():
-    print("Starting AI Tutor - Railway Edition")
+    """
+    Main function to launch the Gradio application.
+    
+    Initializes the database, sets up the server configuration,
+    and launches the Gradio interface with appropriate middleware
+    for production deployment.
+    """
     os.environ["GRADIO_SERVER_NAME"] = "0.0.0.0"
     try:
         db = DatabaseManager()

@@ -24,6 +24,11 @@ class AnswerEvaluator:
     """Handles student answer evaluation logic"""
     
     def __init__(self):
+        """
+        Initialize the AnswerEvaluator with LLM and parser components.
+        
+        Sets up Google GenAI model and Pydantic parser for structured evaluation output.
+        """
         self.llm = GoogleGenAI(
             model_name=config.GEMINI_MODEL_NAME,
             api_key=os.getenv("GOOGLE_API_KEY"),
@@ -92,7 +97,14 @@ class AnswerEvaluator:
     
     def _parse_enhanced_evaluation_fallback(self, response_text: str, language:str ) ->EnhancedAnswerEvaluation:
         """
-        Fallback parsing for enhanced evaluation response
+        Fallback parsing for enhanced evaluation response when structured parsing fails.
+        
+        Args:
+            response_text: Raw LLM response text to parse
+            language: Language code for localization
+            
+        Returns:
+            EnhancedAnswerEvaluation: Parsed evaluation or fallback with default values
         """
         try:
             # Attempt to parse JSON-like structure
@@ -125,10 +137,13 @@ class AnswerEvaluator:
 
     def _create_error_evaluation(self, reason: str) -> EnhancedAnswerEvaluation:
         """
-        Create an error evaluation when expert context is missing
+        Create an error evaluation when expert context is missing or errors occur.
         
         Args:
-            error_type: Type of error encountered
+            reason: Description of the error that occurred
+            
+        Returns:
+            EnhancedAnswerEvaluation: Error evaluation with zero scores
         """
         return EnhancedAnswerEvaluation(
             binary_evaluation="error",
@@ -147,6 +162,16 @@ class AnswerEvaluator:
         )
 
     def _parse_enhanced_evaluation_response(self, response_text: str, language: str = "en") -> EnhancedAnswerEvaluation:
+        """
+        Parse LLM response text into EnhancedAnswerEvaluation structure.
+        
+        Args:
+            response_text: Raw response text from LLM
+            language: Language code for error handling
+            
+        Returns:
+            EnhancedAnswerEvaluation: Parsed evaluation or fallback
+        """
         import json
         try:
             json_start = response_text.find('{')
@@ -176,6 +201,15 @@ class AnswerEvaluator:
         return self._create_fallback_enhanced_evaluation("", language)
             
     def _validate_binary_evaluation(self, binary_evaluation: str) -> str:
+        """
+        Validate binary evaluation value against allowed options.
+        
+        Args:
+            binary_evaluation: Binary evaluation string to validate
+            
+        Returns:
+            str: Valid binary evaluation or "error" if invalid
+        """
         valid_values = [
             "correct", "partially_correct", "incorrect_but_related",
             "incorrect", "unclear", "error"
@@ -184,7 +218,15 @@ class AnswerEvaluator:
     
 
     def _validate_score(self,score) -> float:
-        """control the score value"""
+        """
+        Validate and normalize score values to 0.0-1.0 range.
+        
+        Args:
+            score: Score value to validate (any numeric type)
+            
+        Returns:
+            float: Normalized score between 0.0 and 1.0, or 0.0 if invalid
+        """
         try:
             score_float = float(score)
             return max(0.0, min(score_float, 1.0))
@@ -192,12 +234,30 @@ class AnswerEvaluator:
             return 0.0  # Default to 0 if conversion fails
         
     def _validate_reasoning_quality(self, reasoning_quality: str) -> str:
+        """
+        Validate reasoning quality value against allowed options.
+        
+        Args:
+            reasoning_quality: Reasoning quality string to validate
+            
+        Returns:
+            str: Valid reasoning quality or "none" if invalid
+        """
         valid_qualities = ["excellent", "good", "fair", "poor", "none"]
         return reasoning_quality if reasoning_quality in valid_qualities else "none"
     
     
     def _create_fallback_enhanced_evaluation(self, reason: str, language: str) -> EnhancedAnswerEvaluation:
-        """Enhanced evaluation 최종 fallback"""
+        """
+        Create fallback enhanced evaluation when all parsing methods fail.
+        
+        Args:
+            reason: Reason for fallback evaluation
+            language: Language code for localized feedback
+            
+        Returns:
+            EnhancedAnswerEvaluation: Safe fallback evaluation with default values
+        """
         print("[DEBUG] Creating fallback enhanced evaluation")
         fallback_messages = {
             "en": "The answer has been evaluated, but the evaluation could not be processed correctly. Please review the answer.",

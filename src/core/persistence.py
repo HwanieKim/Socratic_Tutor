@@ -18,11 +18,18 @@ DATA_DOCUMENTS_DIR = config.DATA_DOCUMENTS_DIR
 DATA_IMAGES_DIR = config.DATA_IMAGES_DIR
 
 async def create_index_from_files(file_paths: list = None, output_dir: str = None):
-    """Creates and persists the vector store index from specified files.
+    """
+    Creates and persists the vector store index from specified files.
     
     Args:
         file_paths: List of PDF file paths to process. If None, uses default documents directory.
         output_dir: Directory to save the index. If None, uses default persistence directory.
+        
+    Returns:
+        str: Path to the created index directory
+        
+    Raises:
+        ValueError: If no PDF files are provided or found
     """
     print("Creating new index...")
     
@@ -99,9 +106,14 @@ async def create_index_from_files(file_paths: list = None, output_dir: str = Non
     return persist_dir
 
 async def create_index():
-    """Creates and persists the vector store index from default documents directory.
+    """
+    Creates and persists the vector store index from default documents directory.
     
-    This function maintains backward compatibility with existing code.
+    This function maintains backward compatibility with existing code by using
+    default directories for document processing and index storage.
+    
+    Returns:
+        str: Path to the created index directory
     """
     return await create_index_from_files()
 

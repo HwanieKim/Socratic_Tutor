@@ -19,6 +19,12 @@ class MemoryManager:
     """Manages conversation memory and context caching"""
     
     def __init__(self, token_limit: int = 3000):
+        """
+        Initialize MemoryManager with conversation memory and caching.
+        
+        Args:
+            token_limit: Maximum token limit for conversation memory buffer
+        """
         self.memory = ChatMemoryBuffer.from_defaults(token_limit=token_limit)
         
         # Context caching for current topic
