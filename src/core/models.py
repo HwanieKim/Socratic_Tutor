@@ -229,7 +229,7 @@ class SessionLearningProfile(BaseModel):
                
             )
         return False
-
+    
     def update_level(self, last_evaluation:EnhancedAnswerEvaluation) -> Optional[LevelAdjustment]:
         """
         Intelligently update learning level based on performance patterns
@@ -341,6 +341,7 @@ class SessionLearningProfile(BaseModel):
             LearningLevel.L4_CONCEPTUAL_TRANSFER: "Mastering advanced applications"
         }
         return descriptions.get(self.current_level, "Developing understanding")
+    
     def get_performance_insights(self) -> Dict:
         """Get comprehensive performance insights for the session"""
         try:

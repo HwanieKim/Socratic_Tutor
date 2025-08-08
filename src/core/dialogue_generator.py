@@ -13,7 +13,6 @@ import traceback
 from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.core.llms import ChatMessage, MessageRole
 
-from i18n import get_ui_text
 
 from . import config
 from .models import(
@@ -24,7 +23,7 @@ from .models import(
     LearningLevel
 )
 from .prompts_template import get_adaptive_tutor_template, get_adaptive_strategy_instructions, get_scaffolding_prompt
-from i18n import get_ui_text
+from .i18n import get_ui_text
 
 class DialogueGenerator:
     """Handles Socratic dialogue generation"""
