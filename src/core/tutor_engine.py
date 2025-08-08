@@ -24,7 +24,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 
 from . import config
 from .i18n import get_ui_text
-from .models import ReasoningTriplet, AnswerEvaluation
+from .models import MultidimensionalScores, ReasoningTriplet, EnhancedAnswerEvaluation, SessionLearningProfile, LearningLevel
 from .intent_classifier import IntentClassifier
 from .rag_retriever import RAGRetriever
 from .answer_evaluator import AnswerEvaluator
@@ -57,6 +57,8 @@ class TutorEngine:
         self.language = language
         self.db_manager = DatabaseManager()
         
+        self.learning_profile = SessionLearningProfile()
+
         self.index: Optional[StorageContext] = None
         self._is_engine_ready = False
         self._lock = asyncio.Lock()
@@ -305,13 +307,30 @@ class TutorEngine:
             
             # Cache the context for follow-up questions
             self.memory_manager.cache_topic_context(triplet, source_nodes)
-            
+            mock_multidim = MultidimensionalScores(
+                conceptual_accuracy= 0.5,
+                reasoning_coherence=0.5,
+                use_of_evidence_and_rules=0.5,
+                conceptual_integration=0.5,
+                clarity_of_expression=0.5
+            )
+            mock_eval = EnhancedAnswerEvaluation(
+                binary_evaluation="unclear",
+                multidimensional_scores=mock_multidim,
+                reasoning_quality= "none",
+                misconceptions= [],
+                strengths= [],
+                feedback= "Starting new topic - no prior evaluation",
+                reasoning_analysis= "New question - no prior context"
+            )
             # Stage 2: Generate Socratic dialogue
-            response = self.dialogue_generator.generate_socratic_dialogue(
+            response = self.dialogue_generator.generate_adaptive_socratic_dialogue(
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
-                answer_evaluation=None,
+                answer_evaluation=mock_eval,
+                learning_profile=self.learning_profile,
+                adaptive_strategy="general_guidance",
                 language=language
             )
             
@@ -383,38 +402,126 @@ class TutorEngine:
             
             # Find the tutor's last message
             for msg in reversed(recent_messages[:-1]):  # Exclude the current student message
-                if msg.role.value == "assistant":  # Tutor's message
+                if hasattr(msg, 'role') and hasattr(msg.role, 'value') and msg.role.value == "assistant":
                     tutor_last_message = msg.content
                     break
             
             # Stage 1b: Evaluate student's answer with full context
-            evaluation = self.answer_evaluator.evaluate_student_answer(
+            evaluation = self.answer_evaluator.evaluate_student_answer_enhanced(
                 student_answer, 
                 triplet,
                 tutor_last_message,
                 conversation_context,
                 language
             )
-            print(f"DEBUG: Answer evaluation (Stage 1b): {evaluation.evaluation}")
-            
+            print(f"DEBUG: Answer evaluation (Stage 1b): {evaluation.binary_evaluation} (Overall : {evaluation.overall_score:.3f})")
+
+            self.learning_profile.add_evaluation_score(evaluation)
+            adaptive_strategy = self._determine_adaptive_strategy(evaluation)
+
             # Stage 2: Generate response based on evaluation
-            response = self.dialogue_generator.generate_socratic_dialogue(
+            response = self.dialogue_generator.generate_adaptive_socratic_dialogue(
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
                 answer_evaluation=evaluation,
+                learning_profile=self.learning_profile,
+                adaptive_strategy=adaptive_strategy,
                 language=language
             )
-            
-            # Enhance with encouragement
-            response = self.dialogue_generator.enhance_response_with_encouragement(response, evaluation, language)
+            # # Enhance with encouragement
+            # response = self.dialogue_generator.enhance_response_with_encouragement(response, evaluation, language)
 
             return response
             
         except Exception as e:
             print(f"Student answer handling error: {e}")
+            traceback.print_exc()
             return get_ui_text("engine_interesting_response", language)
 
+
+    def _determine_adaptive_strategy(self, evaluation: EnhancedAnswerEvaluation) -> str:
+        """
+        Determine adaptive strategy based on evaluation
+        
+        Args:
+            evaluation: Enhanced answer evaluation object
+            
+        Returns:
+            str: Adaptive strategy type
+        """
+        current_level= self.learning_profile.current_level
+        overall_score = evaluation.overall_score
+        binary_evaluation = evaluation.binary_evaluation
+
+        print(f"[DEBUG] 🎯 Determining adaptive strategy:")
+        print(f"  - Level: {current_level.value}")
+        print(f"  - Score: {overall_score:.3f}")
+        print(f"  - Binary: {binary_evaluation}")
+
+        if current_level == LearningLevel.L0_PRE_CONCEPTUAL:
+            if overall_score >= 0.6:
+                strategy = "encouragement_basic"
+            else:
+                strategy = "foundation_building"
+
+        elif current_level == LearningLevel.L1_FAMILIARIZATION:
+            if binary_evaluation in ["correct", "partially_correct"]:
+                strategy = "conceptual_reinforcement"
+            else:
+                strategy = "guided_exploration"
+
+        elif current_level == LearningLevel.L2_STRUCTURED_COMPREHENSION:
+            if overall_score >= 0.7:
+                strategy = "connection_building"
+            else:
+                strategy = "procedure_refinement"
+        
+        elif current_level == LearningLevel.L3_PROCEDURAL_FLUENCY:
+            if binary_evaluation == "correct":
+                strategy = "advanced_application"
+            else:
+                strategy = "procedural_reinforcement"
+                
+        elif current_level == LearningLevel.L4_CONCEPTUAL_TRANSFER:
+            if overall_score >= 0.8:
+                strategy = "independent_exploration"
+            else:
+                strategy = "transfer_facilitation"
+        
+        else:
+            strategy = "general_guidance"
+
+        print(f"[DEBUG] 🎯 Selected adaptive strategy: {strategy}")
+        return strategy 
+
+    def get_learning_insights(self)->Dict:
+        try:
+            insights = self.learning_profile.get_performance_insights()
+
+            if self.learning_profile.recent_scores_history:
+                latest_score = self.learning_profile.recent_scores_history[-1]
+                insights.update({
+                    "latest_score": latest_score,
+                    "score_range":{
+                        "min": min(self.learning_profile.recent_scores_history),
+                        "max": max(self.learning_profile.recent_scores_history)
+                    }
+                })
+            session_info = self.get_session_info()
+            insights.update({
+                "session_id": self.session_id,
+                "documents_indexed": session_info.get("documents_indexed", 0),
+                "engine_ready": self._is_engine_ready
+            }
+            )
+            return insights
+        except Exception as e:
+            print(f"Error getting learning insights: {e}")
+            return {
+                "current_level": "unknown",
+                "error": str(e)
+            }
     def _handle_meta_question(self, triplet: ReasoningTriplet, language: str = "en") -> str:
         """
         Handle when student asks for help or expresses confusion
@@ -431,12 +538,17 @@ class TutorEngine:
             print(f"DEBUG: Scaffolding Level {stuck_count}: Student stuck count incremented")
             
             # Get scaffolding decision based on stuck count
-            scaffolding_decision = self.scaffolding_system.decide_scaffolding(stuck_count, triplet)
-            print(f"DEBUG: Scaffolding decision type: {scaffolding_decision.scaffold_type} (level {scaffolding_decision.stuck_level})")
+            scaffolding_decision = self.scaffolding_system.decide_scaffolding_strategy(
+                learning_level=self.learning_profile.current_level,
+                stuck_count=stuck_count,
+                triplet=triplet,
+
+            )
+            print(f"DEBUG: Scaffolding decision type: {scaffolding_decision.scaffold_strategy} (level {scaffolding_decision.stuck_count})")
             
             # Use dialogue generator to create the final response with scaffolding
             source_nodes = self.memory_manager.current_topic_source_nodes or []
-            response = self.dialogue_generator.generate_socratic_dialogue(
+            response = self.dialogue_generator.generate_scaffolding_response(
                 triplet, 
                 source_nodes, 
                 self.memory_manager.memory,
@@ -448,12 +560,14 @@ class TutorEngine:
             
         except Exception as e:
             print(f"Meta question handling error: {e}")
-            return get_ui_text("engine_step_by_step", self.language)
+            traceback.print_exc()
+            return get_ui_text("engine_step_by_step", language)
     
     def reset(self):
         """Reset the entire tutoring session"""
         try:
             self.memory_manager.reset_session()
+            self.learning_profile = SessionLearningProfile()  # Reset learning profile
             print("✅ Tutoring session reset successfully")
             
         except Exception as e:
@@ -462,8 +576,17 @@ class TutorEngine:
     def get_session_summary(self) -> dict:
         """Get summary of current tutoring session"""
         try:
-            return self.memory_manager.get_session_summary()
-            
+            memory_summary = self.memory_manager.get_session_summary()
+            learning_insights = self.get_learning_insights()
+            return {
+                **memory_summary,
+                "learning_profile": learning_insights,
+                "adaptive_features":{
+                    "level_adjustments": len(self.learning_profile.level_adjustments_history),
+                    "performance_trend": learning_insights.get("performance_trend", "unknown"),
+                    "current_strategy": getattr(self, '_last_adaptive_strategy', 'general_guidance'),
+                }
+            }
         except Exception as e:
             print(f"Error getting session summary: {e}")
             return {"error": "Unable to generate session summary"}
@@ -670,7 +793,10 @@ class TutorEngine:
                     'documents_count': doc_count,
                     'indexed_count': doc_count,
                     'engine_ready': True,
-                    'has_index': True
+                    'has_index': True,
+                    'learning_level': self.learning_profile.current_level.value,
+                    'total_interactions': self.learning_profile.total_interactions,
+                    'recent_performance': self.learning_profile.recent_scores_history[-1] if self.learning_profile.recent_scores_history else None
                 }
 
             # Fallback to DB check if engine isn't ready yet
@@ -686,7 +812,9 @@ class TutorEngine:
                 'documents_count': len(documents),
                 'indexed_count': indexed_doc_count,
                 'engine_ready': False,
-                'has_index': False
+                'has_index': False,
+                'learning_level': self.learning_profile.current_level.value,
+                'total_interactions': self.learning_profile.total_interactions
             }
         except Exception as e:
             print(f"Error getting tutoring status: {e}")
@@ -786,9 +914,3 @@ class TutorEngine:
             traceback.print_exc()
             return {"key": "engine_load_failed", "params": {"error": str(e)}}
 
-# Legacy method aliases for backward compatibility
-def get_guidance(user_question: str) -> str:
-    """Legacy function - use TutorEngine class instead"""
-    print("Warning: Using legacy function. Consider using TutorEngine class directly.")
-    # This would require a global instance - not recommended for production
-    pass

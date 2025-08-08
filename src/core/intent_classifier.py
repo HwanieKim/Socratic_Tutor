@@ -5,13 +5,14 @@ Intent Classification Module
 Handles Stage 0 and Stage 0b classification logic:
 - Stage 0: new_question vs follow_up
 - Stage 0b: answer vs meta_question
+- stage 0c: meta_question type classification
 """
 
 import os
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.llms.google_genai import GoogleGenAI
 from . import config
-from .prompts_template import  get_intent_classifier_prompt,get_follow_up_type_classifier_prompt
+from .prompts_template import  get_intent_classifier_prompt,get_follow_up_type_classifier_prompt, get_meta_question_classifier_prompt
 
 
 class IntentClassifier:
@@ -104,6 +105,44 @@ class IntentClassifier:
         except Exception as e:
             print(f"Follow-up classification error: {e}")
             return self._fallback_classification(user_input, language)
+
+    def classify_meta_question_type(self, user_input: str, memory, language: str = "en") -> str:
+        """
+        stage 0c: meta_question type classification
+        """
+
+        try:
+            recent_messages= memory.get_all()
+            tutor_question = "No previous question found."
+
+            for msg in reversed(recent_messages):
+                if msg.role == MessageRole.ASSISTANT:
+                    tutor_question = msg.content
+                    break
+            
+            prompt_template = get_meta_question_classifier_prompt(language)
+            prompt = prompt_template.format(
+                tutor_question=tutor_question,
+                student_response=user_input
+            )
+
+            # Get LLM response
+            response = self.llm.complete(prompt)
+
+            classification = response.text.strip().lower()
+
+            valid_types = ["clarification", "process_question", "concept_question", "confusion_frustration"]
+            if classification in valid_types:
+                return classification
+
+            else:
+                # fallback
+                print (f"WARNING: Found invalid meta-question type '{classification}', falling back to 'confusion_frustration'")
+                return "confusion_frustration"
+
+        except Exception as e:
+            print(f"Meta-question classification error: {e}")
+            return "confusion_frustration"
 
     def _fallback_classification(self, user_input: str, language: str = "en") -> str:
         """

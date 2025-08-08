@@ -212,11 +212,13 @@ async def get_tutor_response(user_input, conversation_history, lang):
             engine.save_conversation(user_input, response)
 
         conversation_history.append({"role": "assistant", "content": response})
-        return conversation_history, ""
+        
+        update_insights = get_session_insights_display(lang)
+        return conversation_history, "", update_insights
     except Exception as e:
         error_msg = f"{get_ui_text('chat_error', lang)}: {str(e)}"
         conversation_history.append({"role": "assistant", "content": error_msg})
-        return conversation_history, ""
+        return conversation_history, "", get_session_insights_display(lang)
 
 def new_session(lang='en'):
     """
@@ -240,13 +242,7 @@ def reset_conversation(lang='en'):
     if engine: engine.reset()
     return [], get_ui_text('conversation_reset', lang)
 
-def update_chat_availability(lang='en', status=None):
-    """Legacy function - chat is now always available"""
-    # 채팅은 이제 항상 활성화되므로 이 함수는 더 이상 필요하지 않음
-    return gr.update(
-        interactive=True, 
-        placeholder=get_ui_text("chat_enabled_ready", lang)
-    )
+
 
 def check_and_update_ui_state(lang='en'):
     """Always enable chat - let the chat handler deal with setup messages"""
@@ -321,8 +317,86 @@ async def handle_load_index_click(index_id, lang='en'):
 
 # --- [FINAL VERSION] Gradio Interface Creation ---
 
+def get_session_insights_display(lang='en'):
+    """Get formatted learning insights for display"""
+    global current_session_id
+    
+    engine = get_or_create_session(current_session_id, lang)
+    if not engine:
+        return f"❌ {get_ui_text('insights_error', lang)}"
+    
+    try:
+        insights = engine.get_learning_insights()
+        
+        if "error" in insights:
+            return f"❌ {get_ui_text('insights_error', lang)}: {insights['error']}"
+        
+        # Build formatted display
+        display_lines = [f"# {get_ui_text('learning_insights_header', lang)}\n"]
+        
+        # Basic info section
+        display_lines.extend([
+            f"🎯 **{get_ui_text('current_level_label', lang)}:** {insights.get('current_level', 'Unknown')}",
+            f"📝 **{get_ui_text('level_description_label', lang)}:** {insights.get('level_description', 'N/A')}",
+            f"💬 **{get_ui_text('total_interactions_label', lang)}:** {insights.get('total_interactions', 0)}",
+            f"⏱️ **{get_ui_text('session_duration_label', lang)}:** {insights.get('session_duration_minutes', 0)} {get_ui_text('minutes_unit', lang)}",
+            ""
+        ])
+
+        # Recent performance section
+        display_lines.append(f"## {get_ui_text('recent_performance_header', lang)}")
+        
+        recent_perf = insights.get("recent_performance")
+        if recent_perf:
+            trend_key = f"trend_{recent_perf['score_trend']}"
+            trend_text = get_ui_text(trend_key, lang)
+            
+            display_lines.extend([
+                f"• **{get_ui_text('average_score_label', lang)}:** {recent_perf['average_score']:.2f}",
+                f"• **{get_ui_text('latest_score_label', lang)}:** {recent_perf['latest_score']:.2f}",
+                f"• **{get_ui_text('performance_trend_label', lang)}:** {trend_text}",
+                f"• **{get_ui_text('evaluations_count_label', lang)}:** {recent_perf['scores_count']}",
+                ""
+            ])
+        else:
+            display_lines.extend([
+                f"*{get_ui_text('no_performance_data', lang)}*",
+                ""
+            ])
+
+        # Performance streaks section
+        perf_streaks = insights.get("performance_streaks")
+        if perf_streaks:
+            display_lines.extend([
+                f"## {get_ui_text('performance_streaks_header', lang)}",
+                f"• **{get_ui_text('consecutive_high_label', lang)}:** {perf_streaks['consecutive_high']}",
+                f"• **{get_ui_text('consecutive_low_label', lang)}:** {perf_streaks['consecutive_low']}",
+                f"• **{get_ui_text('stability_at_level_label', lang)}:** {perf_streaks['stability_at_level']}",
+                ""
+            ])
+
+        # Level progression section  
+        display_lines.append(f"## {get_ui_text('level_progression_header', lang)}")
+        
+        level_prog = insights.get("level_progression")
+        if level_prog:
+            last_change = level_prog["last_change"]
+            display_lines.extend([
+                f"• **{get_ui_text('last_level_change_label', lang)}:** {last_change['from']} → {last_change['to']}",
+                f"• **Reason:** {last_change['reason']}",
+                f"• **Score:** {last_change['score']:.2f}",
+                f"• **{get_ui_text('total_level_changes_label', lang)}:** {level_prog['total_changes']}"
+            ])
+        else:
+            display_lines.append(f"*{get_ui_text('no_level_changes', lang)}*")
+        
+        return "\n".join(display_lines)
+        
+    except Exception as e:
+        return f"❌ {get_ui_text('insights_error', lang)}: {str(e)}"
+
 def create_gradio_interface():
-    """Create the main Gradio interface with a manual, dependency-free modal."""
+    """Create the main Gradio interface with learning insights"""
     
     # This CSS is the core of the manual modal implementation.
     css = """
@@ -427,6 +501,19 @@ def create_gradio_interface():
                         reset_btn = gr.Button(get_ui_text('reset_btn','en'), variant="secondary")
                         clear_btn = gr.Button(get_ui_text('clear_btn','en'), variant="secondary")
 
+                with gr.Column(scale=2):
+                    # Add Learning Insights section
+                    with gr.Accordion(label="📊 Learning Analytics", open=False) as insights_accordion:
+                        learning_insights_btn = gr.Button(
+                            value="Show Learning Insights", 
+                            variant="secondary",
+                            size="sm"
+                        )
+                        learning_insights_display = gr.Markdown(
+                            value="Click the button above to view your learning progress.",
+                            visible=True
+                        )
+
         # --- Manual Modal/Popup Container (Initially Visible) ---
         with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
             with gr.Column(elem_id="popup_content_wrapper"):
@@ -506,6 +593,11 @@ def create_gradio_interface():
                 modal_step3_header: gr.update(value=f"## {get_ui_text('modal_step3_header', lang)}"),
                 modal_step3_subheader: gr.update(value=get_ui_text('modal_step3_subheader', lang)),
                 start_btn: gr.update(value=get_ui_text('modal_start_btn', lang)),
+
+                insights_accordion: gr.update(label=f"📊 {get_ui_text('learning_insights_header', lang).replace('📊 ', '')}"),
+                learning_insights_btn: gr.update(value=get_ui_text('learning_insights_btn', lang)),
+                learning_insights_display: gr.update(value=get_ui_text('no_performance_data', lang))
+            
             }
 
         all_ui_outputs = [
@@ -514,10 +606,14 @@ def create_gradio_interface():
             upload_header, file_upload, upload_status, setup_header, load_index_btn, create_index_btn,
             setup_status, conversation_header, chat_disclaimer_md, user_input,
             send_btn, reset_btn, clear_btn,
-            # --- Modal Outputs ---
+            # --- Modal/Popup Outputs ---
             modal_step1_header, modal_step1_subheader, modal_step1_info, modal_step1_success_header, next_to_step_2_btn,
             modal_step2_header, modal_step2_subheader, modal_step2_detail, next_to_step_3_btn,
-            modal_step3_header, modal_step3_subheader, start_btn
+            modal_step3_header, modal_step3_subheader, start_btn,
+            # --- Learning Insights Components ---
+            learning_insights_btn,
+            learning_insights_display,
+            insights_accordion
         ]
 
         # Modal/Popup control functions
@@ -622,13 +718,13 @@ def create_gradio_interface():
         send_btn.click(
             get_tutor_response,
             inputs=[user_input, chatbot, language_state],
-            outputs=[chatbot, user_input]
+            outputs=[chatbot, user_input, learning_insights_display]
         )
 
         user_input.submit(
             get_tutor_response,
             inputs=[user_input, chatbot, language_state],
-            outputs=[chatbot, user_input]
+            outputs=[chatbot, user_input, learning_insights_display]
         )
 
         reset_btn.click(
@@ -642,15 +738,21 @@ def create_gradio_interface():
             outputs=[chatbot, user_input]
         )
 
-        # Language change handler - updates UI state when language changes
+        
+
+        # Connect learning insights events
+        learning_insights_btn.click(
+            fn=get_session_insights_display,
+            inputs=[language_state],
+            outputs=[learning_insights_display]
+        )
+
+
+        # Connect language change to learning insights
         language_dropdown.change(
             fn=update_ui_language_and_state,
             inputs=[language_dropdown],
             outputs=all_ui_outputs
-        ).then(
-            fn=get_session_status,
-            inputs=[language_dropdown],
-            outputs=[session_info_display]
         )
 
         # Load initial session status when the app loads. The popup will appear on top.
