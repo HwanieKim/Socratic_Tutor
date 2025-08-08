@@ -11,13 +11,12 @@ from .dialogue_generator import DialogueGenerator
 from .scaffolding_system import ScaffoldingSystem
 from .memory_manager import MemoryManager
 from .database_manager import DatabaseManager
-from .i18n import get_ui_text, get_tutor_text, SUPPORTED_LANGUAGES
+from .i18n import get_ui_text
 from . import config
 
 __all__ = [
     'TutorEngine', 
     'ReasoningTriplet', 
-    'AnswerEvaluation',
     'EnhancedAnswerEvaluation',
     'ProductionTutorEngine',
     'IntentClassifier',
