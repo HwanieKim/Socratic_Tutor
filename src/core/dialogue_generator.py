@@ -144,6 +144,7 @@ class DialogueGenerator:
                 expert_answer=triplet.answer,
                 user_input=user_input,
                 scaffold_strategy=scaffolding_decision.scaffold_strategy,
+                strategy_description=scaffolding_decision.strategy_description,
                 conversation_context=conversation_context,
                 stuck_level=scaffolding_decision.stuck_count
                 )

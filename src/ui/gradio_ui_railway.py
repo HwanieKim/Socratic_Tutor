@@ -484,9 +484,8 @@ def create_gradio_interface():
                     create_index_btn = gr.Button(get_ui_text('create_index_btn','en'), variant="primary", visible=False)
                     setup_status = gr.Textbox(label=get_ui_text('setup_status_label','en'), interactive=False, lines=4)
 
-                with gr.Column(scale=2):
+                with gr.Column(scale=3):
                     conversation_header = gr.Markdown(f"### {get_ui_text('conversation_header','en')}")
-                    chat_disclaimer_md = gr.Markdown(f"*{get_ui_text('chat_disclaimer','en')}*")
                     chatbot = gr.Chatbot( height=600, show_label=False, type="messages")
                     with gr.Row():
                         user_input = gr.Textbox(
@@ -497,11 +496,8 @@ def create_gradio_interface():
                             interactive=True  # Always enabled
                         )
                         send_btn = gr.Button(get_ui_text('send_btn','en'), variant="primary", scale=1)
-                    with gr.Row():
-                        reset_btn = gr.Button(get_ui_text('reset_btn','en'), variant="secondary")
-                        clear_btn = gr.Button(get_ui_text('clear_btn','en'), variant="secondary")
 
-                with gr.Column(scale=2):
+                with gr.Column(scale=1):
                     # Add Learning Insights section
                     with gr.Accordion(label="📊 Learning Analytics", open=False) as insights_accordion:
                         learning_insights_btn = gr.Button(
@@ -513,6 +509,9 @@ def create_gradio_interface():
                             value="Click the button above to view your learning progress.",
                             visible=True
                         )
+                    with gr.Row():
+                        reset_btn = gr.Button(get_ui_text('reset_btn','en'), variant="secondary")
+                        clear_btn = gr.Button(get_ui_text('clear_btn','en'), variant="secondary")
 
         # --- Manual Modal/Popup Container (Initially Visible) ---
         with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
@@ -571,7 +570,6 @@ def create_gradio_interface():
                 create_index_btn: gr.update(value=get_ui_text('create_index_btn', lang)),
                 setup_status: gr.update(label=get_ui_text('setup_status_label', lang)),
                 conversation_header: gr.update(value=f"### {get_ui_text('conversation_header', lang)}"),
-                chat_disclaimer_md: gr.update(value=f"*{get_ui_text('chat_disclaimer', lang)}*"),
                 user_input: gr.update(
                     label=get_ui_text('ask_question_label', lang), 
                     placeholder=chat_placeholder,
@@ -604,7 +602,7 @@ def create_gradio_interface():
             language_state, app_title, app_header, session_header, new_session_btn,
             session_status_btn, language_dropdown, session_info_display,
             upload_header, file_upload, upload_status, setup_header, load_index_btn, create_index_btn,
-            setup_status, conversation_header, chat_disclaimer_md, user_input,
+            setup_status, conversation_header, user_input,
             send_btn, reset_btn, clear_btn,
             # --- Modal/Popup Outputs ---
             modal_step1_header, modal_step1_subheader, modal_step1_info, modal_step1_success_header, next_to_step_2_btn,

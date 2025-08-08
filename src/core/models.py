@@ -442,7 +442,9 @@ class ScaffoldingDecision(BaseModel):
     stuck_count: int = Field(
         description="How many times the student has been stuck (1-4+)."
     )
-
+    strategy_description: str = Field(
+        description="A brief description of the chosen scaffolding strategy."
+    )
     reason: str = Field(
         description="Pedagogical reason for choosing this scaffolding approach."
     )

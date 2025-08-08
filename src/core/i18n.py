@@ -35,8 +35,7 @@ UI_TEXTS = {
         
         # Conversation
         "conversation_header": "Step 3: Conversation with Tutor",
-        "chat_disclaimer": "Note: Tutoring conversation is only available in English.",
-        "ask_question_label": "Ask a question (in English)",
+        "ask_question_label": "Ask a question",
         "send_btn": "Send",
         "reset_btn": "Reset Conversation", 
         "clear_btn": "Clear Chat",
@@ -199,8 +198,7 @@ UI_TEXTS = {
         
         # Conversation
         "conversation_header": "Passo 3: Conversazione con il Tutore",
-        "chat_disclaimer": "Nota: Al momento la conversazione di tutoraggio è disponibile solo in inglese.",
-        "ask_question_label": "Fai una domanda (in inglese)",
+        "ask_question_label": "Fai una domanda ",
         "send_btn": "Invia",
         "reset_btn": "Resetta Conversazione",
         "clear_btn": "Pulisci Chat",
