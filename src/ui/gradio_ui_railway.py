@@ -224,7 +224,7 @@ async def get_tutor_response(user_input, conversation_history, lang):
         tuple: (updated_conversation, cleared_input, learning_insights)
     """
     global current_session_id
-    if not user_input.strip(): return conversation_history, ""
+    if not user_input.strip(): return conversation_history, "", ""
 
     conversation_history.append({"role": "user", "content": user_input})
 
@@ -250,8 +250,8 @@ async def get_tutor_response(user_input, conversation_history, lang):
             error_msg = get_ui_text("system_not_ready", lang)
         
         conversation_history.append({"role": "assistant", "content": error_msg})
-        return conversation_history, ""
-    
+        return conversation_history, "", learning_insights
+
     try:
         result  = await engine.get_guidance(user_input,language=lang)
         # Get tutor's response based on user input
@@ -268,7 +268,9 @@ async def get_tutor_response(user_input, conversation_history, lang):
     except Exception as e:
         error_msg = f"{get_ui_text('chat_error', lang)}: {str(e)}"
         conversation_history.append({"role": "assistant", "content": error_msg})
-        return conversation_history, "", get_session_insights_display(lang)
+        learning_insights= get_session_insights_display(lang)
+        return conversation_history, "", learning_insights
+
 
 def new_session(lang='en'):
     """
