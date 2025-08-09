@@ -475,26 +475,26 @@ def get_session_insights_display(lang='en'):
         
         # Basic info section
         display_lines.extend([
-            f"🎯 **{get_ui_text('current_level_label', lang)}:** {insights.get('current_level', 'Unknown')}",
-            f"📝 **{get_ui_text('level_description_label', lang)}:** {insights.get('level_description', 'N/A')}",
-            f"💬 **{get_ui_text('total_interactions_label', lang)}:** {insights.get('total_interactions', 0)}",
-            f"⏱️ **{get_ui_text('session_duration_label', lang)}:** {insights.get('session_duration_minutes', 0)} {get_ui_text('minutes_unit', lang)}",
+            f"🎯 **{get_ui_text('current_level_label', lang)}:** {insights.get('current_level', 'Unknown')}\n",
+            f"📝 **{get_ui_text('level_description_label', lang)}:** {insights.get('level_description', 'N/A')}\n",
+            f"💬 **{get_ui_text('total_interactions_label', lang)}:** {insights.get('total_interactions', 0)}\n",
+            f"⏱️ **{get_ui_text('session_duration_label', lang)}:** {insights.get('session_duration_minutes', 0)} {get_ui_text('minutes_unit', lang)}\n",
             ""
         ])
 
         # Recent performance section
-        display_lines.append(f"## {get_ui_text('recent_performance_header', lang)}")
-        
+        display_lines.append(f"## {get_ui_text('recent_performance_header', lang)}\n")
+
         recent_perf = insights.get("recent_performance")
         if recent_perf:
             trend_key = f"trend_{recent_perf['score_trend']}"
             trend_text = get_ui_text(trend_key, lang)
             
             display_lines.extend([
-                f"• **{get_ui_text('average_score_label', lang)}:** {recent_perf['average_score']:.2f}",
-                f"• **{get_ui_text('latest_score_label', lang)}:** {recent_perf['latest_score']:.2f}",
-                f"• **{get_ui_text('performance_trend_label', lang)}:** {trend_text}",
-                f"• **{get_ui_text('evaluations_count_label', lang)}:** {recent_perf['scores_count']}",
+                f"• **{get_ui_text('average_score_label', lang)}:** {recent_perf['average_score']:.2f}\n",
+                f"• **{get_ui_text('latest_score_label', lang)}:** {recent_perf['latest_score']:.2f}\n",
+                f"• **{get_ui_text('performance_trend_label', lang)}:** {trend_text}\n",
+                f"• **{get_ui_text('evaluations_count_label', lang)}:** {recent_perf['scores_count']}\n",
                 ""
             ])
         else:
@@ -508,9 +508,9 @@ def get_session_insights_display(lang='en'):
         if perf_streaks:
             display_lines.extend([
                 f"## {get_ui_text('performance_streaks_header', lang)}",
-                f"• **{get_ui_text('consecutive_high_label', lang)}:** {perf_streaks['consecutive_high']}",
-                f"• **{get_ui_text('consecutive_low_label', lang)}:** {perf_streaks['consecutive_low']}",
-                f"• **{get_ui_text('stability_at_level_label', lang)}:** {perf_streaks['stability_at_level']}",
+                f"• **{get_ui_text('consecutive_high_label', lang)}:** {perf_streaks['consecutive_high']}\n",
+                f"• **{get_ui_text('consecutive_low_label', lang)}:** {perf_streaks['consecutive_low']}\n",
+                f"• **{get_ui_text('stability_at_level_label', lang)}:** {perf_streaks['stability_at_level']}\n",
                 ""
             ])
 
@@ -521,10 +521,10 @@ def get_session_insights_display(lang='en'):
         if level_prog:
             last_change = level_prog["last_change"]
             display_lines.extend([
-                f"• **{get_ui_text('last_level_change_label', lang)}:** {last_change['from']} → {last_change['to']}",
-                f"• **Reason:** {last_change['reason']}",
-                f"• **Score:** {last_change['score']:.2f}",
-                f"• **{get_ui_text('total_level_changes_label', lang)}:** {level_prog['total_changes']}"
+                f"• **{get_ui_text('last_level_change_label', lang)}:** {last_change['from']} → {last_change['to']}\n",
+                f"• **Reason:** {last_change['reason']}\n",
+                f"• **Score:** {last_change['score']:.2f}\n",
+                f"• **{get_ui_text('total_level_changes_label', lang)}:** {level_prog['total_changes']}\n"
             ])
         else:
             display_lines.append(f"*{get_ui_text('no_level_changes', lang)}*")
