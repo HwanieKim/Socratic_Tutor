@@ -664,36 +664,36 @@ def create_gradio_interface():
                         clear_btn = gr.Button(get_ui_text('clear_btn','en'), variant="secondary")
 
         # --- Manual Modal/Popup Container (Initially Visible) ---
-        with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
-            with gr.Column(elem_id="popup_content_wrapper"):
-                close_btn = gr.Button("✖", elem_id="close_button")
+        # with gr.Column(visible=True, elem_id="popup_modal_container") as popup_container:
+        #     with gr.Column(elem_id="popup_content_wrapper"):
+        #         close_btn = gr.Button("✖", elem_id="close_button")
 
-                # Step 1: File Upload
-                with gr.Column(visible=True) as step_1_container:
-                    modal_step1_header = gr.Markdown(f"{get_ui_text('modal_step1_header', 'en')}")
-                    modal_step1_subheader = gr.Markdown(f"{get_ui_text('modal_step1_subheader', 'en')}")
-                    gr.Image(value="assets/upload.png", interactive=False, show_download_button=False, show_label=False)
-                    modal_step1_info = gr.Markdown(get_ui_text('modal_step1_info', 'en'))
-                    modal_step1_success_header = gr.Markdown(f"{get_ui_text('modal_step1_success_header', 'en')}")
-                    gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
-                    next_to_step_2_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
+        #         # Step 1: File Upload
+        #         with gr.Column(visible=True) as step_1_container:
+        #             modal_step1_header = gr.Markdown(f"{get_ui_text('modal_step1_header', 'en')}")
+        #             modal_step1_subheader = gr.Markdown(f"{get_ui_text('modal_step1_subheader', 'en')}")
+        #             gr.Image(value="assets/upload.png", interactive=False, show_download_button=False, show_label=False)
+        #             modal_step1_info = gr.Markdown(get_ui_text('modal_step1_info', 'en'))
+        #             modal_step1_success_header = gr.Markdown(f"{get_ui_text('modal_step1_success_header', 'en')}")
+        #             gr.Image(value="assets/PDF_uploaded.png", interactive=False, show_download_button=False, show_label=False)
+        #             next_to_step_2_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
 
-                # Step 2: Index Creation
-                with gr.Column(visible=False) as step_2_container:
-                    modal_step2_header = gr.Markdown(f"{get_ui_text('modal_step2_header', 'en')}")
-                    modal_step2_subheader = gr.Markdown(get_ui_text('modal_step2_subheader', 'en'))
-                    gr.Image(value="assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
+        #         # Step 2: Index Creation
+        #         with gr.Column(visible=False) as step_2_container:
+        #             modal_step2_header = gr.Markdown(f"{get_ui_text('modal_step2_header', 'en')}")
+        #             modal_step2_subheader = gr.Markdown(get_ui_text('modal_step2_subheader', 'en'))
+        #             gr.Image(value="assets/setup_create_index.png", interactive=False, show_download_button=False, show_label=False)
 
-                    modal_step2_detail = gr.Markdown(get_ui_text('modal_step2_detail', 'en'))
-                    gr.Image(value="assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
-                    gr.Image(value="assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
-                    next_to_step_3_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
+        #             modal_step2_detail = gr.Markdown(get_ui_text('modal_step2_detail', 'en'))
+        #             gr.Image(value="assets/index_creating.png", interactive=False, show_download_button=False, show_label=False)
+        #             gr.Image(value="assets/index_success.png", interactive=False, show_download_button=False, show_label=False)
+        #             next_to_step_3_btn = gr.Button(get_ui_text('modal_next_btn', 'en'), variant="primary")
                 
-                # Step 3: Start Tutoring
-                with gr.Column(visible=False) as step_3_container:
-                    modal_step3_header = gr.Markdown(f"{get_ui_text('modal_step3_header', 'en')}")
-                    modal_step3_subheader = gr.Markdown(get_ui_text('modal_step3_subheader', 'en'))
-                    start_btn = gr.Button(get_ui_text('modal_start_btn', 'en'), variant="primary")
+        #         # Step 3: Start Tutoring
+        #         with gr.Column(visible=False) as step_3_container:
+        #             modal_step3_header = gr.Markdown(f"{get_ui_text('modal_step3_header', 'en')}")
+        #             modal_step3_subheader = gr.Markdown(get_ui_text('modal_step3_subheader', 'en'))
+        #             start_btn = gr.Button(get_ui_text('modal_start_btn', 'en'), variant="primary")
 
         # --- Event Handlers & Connections ---
         
@@ -739,19 +739,19 @@ def create_gradio_interface():
                 send_btn: gr.update(value=get_ui_text('send_btn', lang)),
                 reset_btn: gr.update(value=get_ui_text('reset_btn', lang)),
                 clear_btn: gr.update(value=get_ui_text('clear_btn', lang)),
-                # --- Modal Text Updates ---
-                modal_step1_header: gr.update(value=f"## {get_ui_text('modal_step1_header', lang)}"),
-                modal_step1_subheader: gr.update(value=f" {get_ui_text('modal_step1_subheader', lang)}"),
-                modal_step1_info: gr.update(value=get_ui_text('modal_step1_info', lang)),
-                modal_step1_success_header: gr.update(value=f" {get_ui_text('modal_step1_success_header', lang)}"),
-                next_to_step_2_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
-                modal_step2_header: gr.update(value=f"## {get_ui_text('modal_step2_header', lang)}"),
-                modal_step2_subheader: gr.update(value=get_ui_text('modal_step2_subheader', lang)),
-                modal_step2_detail: gr.update(value=get_ui_text('modal_step2_detail', lang)),
-                next_to_step_3_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
-                modal_step3_header: gr.update(value=f"## {get_ui_text('modal_step3_header', lang)}"),
-                modal_step3_subheader: gr.update(value=get_ui_text('modal_step3_subheader', lang)),
-                start_btn: gr.update(value=get_ui_text('modal_start_btn', lang)),
+                # # --- Modal Text Updates ---
+                # modal_step1_header: gr.update(value=f"## {get_ui_text('modal_step1_header', lang)}"),
+                # modal_step1_subheader: gr.update(value=f" {get_ui_text('modal_step1_subheader', lang)}"),
+                # modal_step1_info: gr.update(value=get_ui_text('modal_step1_info', lang)),
+                # modal_step1_success_header: gr.update(value=f" {get_ui_text('modal_step1_success_header', lang)}"),
+                # next_to_step_2_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
+                # modal_step2_header: gr.update(value=f"## {get_ui_text('modal_step2_header', lang)}"),
+                # modal_step2_subheader: gr.update(value=get_ui_text('modal_step2_subheader', lang)),
+                # modal_step2_detail: gr.update(value=get_ui_text('modal_step2_detail', lang)),
+                # next_to_step_3_btn: gr.update(value=get_ui_text('modal_next_btn', lang)),
+                # modal_step3_header: gr.update(value=f"## {get_ui_text('modal_step3_header', lang)}"),
+                # modal_step3_subheader: gr.update(value=get_ui_text('modal_step3_subheader', lang)),
+                # start_btn: gr.update(value=get_ui_text('modal_start_btn', lang)),
 
                 insights_accordion: gr.update(label=f"📊 {get_ui_text('learning_insights_header', lang).replace('📊 ', '')}"),
                 learning_insights_btn: gr.update(value=get_ui_text('learning_insights_btn', lang)),
@@ -766,82 +766,82 @@ def create_gradio_interface():
             setup_status, conversation_header, user_input,
             send_btn, reset_btn, clear_btn,
             # --- Modal/Popup Outputs ---
-            modal_step1_header, modal_step1_subheader, modal_step1_info, modal_step1_success_header, next_to_step_2_btn,
-            modal_step2_header, modal_step2_subheader, modal_step2_detail, next_to_step_3_btn,
-            modal_step3_header, modal_step3_subheader, start_btn,
+            # modal_step1_header, modal_step1_subheader, modal_step1_info, modal_step1_success_header, next_to_step_2_btn,
+            # modal_step2_header, modal_step2_subheader, modal_step2_detail, next_to_step_3_btn,
+            # modal_step3_header, modal_step3_subheader, start_btn,
             # --- Learning Insights Components ---
             learning_insights_btn,
             learning_insights_display,
             insights_accordion
         ]
 
-        # Modal/Popup control functions
-        def handle_next_step(current_step):
-            """
-            Handle modal step navigation.
+        # # Modal/Popup control functions
+        # def handle_next_step(current_step):
+        #     """
+        #     Handle modal step navigation.
             
-            Updates step state and manages visibility of modal containers
-            for the multi-step setup process.
+        #     Updates step state and manages visibility of modal containers
+        #     for the multi-step setup process.
             
-            Args:
-                current_step: Current step number in modal flow
+        #     Args:
+        #         current_step: Current step number in modal flow
                 
-            Returns:
-                dict: Updated step state and container visibility
-            """
-            new_step = current_step + 1
-            return {
-                step_state: new_step,
-                step_1_container: gr.update(visible=(new_step == 1)),
-                step_2_container: gr.update(visible=(new_step == 2)),
-                step_3_container: gr.update(visible=(new_step == 3)),
-            }
+        #     Returns:
+        #         dict: Updated step state and container visibility
+        #     """
+        #     new_step = current_step + 1
+        #     return {
+        #         step_state: new_step,
+        #         step_1_container: gr.update(visible=(new_step == 1)),
+        #         step_2_container: gr.update(visible=(new_step == 2)),
+        #         step_3_container: gr.update(visible=(new_step == 3)),
+        #     }
 
-        def close_popup_and_reset():
-            """
-            Close the modal popup and reset to main application.
+        # def close_popup_and_reset():
+        #     """
+        #     Close the modal popup and reset to main application.
             
-            Transitions from the modal setup flow to the main application
-            interface and resets modal state for future use.
+        #     Transitions from the modal setup flow to the main application
+        #     interface and resets modal state for future use.
             
-            Returns:
-                dict: Updated visibility states for containers and reset modal state
-            """
-            return {
-                popup_container: gr.update(visible=False),
-                main_app_container: gr.update(visible=True),
-                step_state: 1,
-                step_1_container: gr.update(visible=True),
-                step_2_container: gr.update(visible=False),
-                step_3_container: gr.update(visible=False),
-            }
-
-        # Connect modal buttons
-        next_to_step_2_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
-        next_to_step_3_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
-
-        outputs_for_close = [popup_container, main_app_container, step_state, step_1_container, step_2_container, step_3_container]
-        start_btn.click(
-            fn=close_popup_and_reset,
-            inputs=None,
-            outputs=outputs_for_close
-        ) \
-                .then(
-                    fn=get_session_status,
-                    inputs=[language_state],
-                    outputs=[session_info_display]
-                )
+        #     Returns:
+        #         dict: Updated visibility states for containers and reset modal state
+        #     """
+        #     return {
+        #         popup_container: gr.update(visible=False),
+        #         main_app_container: gr.update(visible=True),
+        #         step_state: 1,
+        #         step_1_container: gr.update(visible=True),
+        #         step_2_container: gr.update(visible=False),
+        #         step_3_container: gr.update(visible=False),
+        #     }
         
-        close_btn.click(
-            fn=close_popup_and_reset,
-            inputs=None,
-            outputs=outputs_for_close
-        ) \
-                .then(
-                    fn=get_session_status,
-                    inputs=[language_state],
-                    outputs=[session_info_display]
-                )
+        # Connect modal buttons
+        # next_to_step_2_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
+        # next_to_step_3_btn.click(fn=handle_next_step, inputs=[step_state], outputs=[step_state, step_1_container, step_2_container, step_3_container])
+
+        # outputs_for_close = [popup_container, main_app_container, step_state, step_1_container, step_2_container, step_3_container]
+        # start_btn.click(
+        #     fn=close_popup_and_reset,
+        #     inputs=None,
+        #     outputs=outputs_for_close
+        # ) \
+        #         .then(
+        #             fn=get_session_status,
+        #             inputs=[language_state],
+        #             outputs=[session_info_display]
+        #         )
+        
+        # close_btn.click(
+        #     fn=close_popup_and_reset,
+        #     inputs=None,
+        #     outputs=outputs_for_close
+        # ) \
+        #         .then(
+        #             fn=get_session_status,
+        #             inputs=[language_state],
+        #             outputs=[session_info_display]
+        #         )
 
         # Main application event handlers
         new_session_btn.click(
