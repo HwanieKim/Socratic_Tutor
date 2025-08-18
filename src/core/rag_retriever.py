@@ -206,10 +206,6 @@ class RAGRetriever:
             "it": {
                 "reasoning": "Basandomi sulle informazioni disponibili...",
                 "answer": "Ho trovato informazioni rilevanti, ma devo elaborarle ulteriormente."
-            },
-            "es": {
-                "reasoning": "Basándome en la información disponible...",
-                "answer": "Encontré información relevante, pero necesito procesarla más."
             }
         }
             question = user_question
@@ -255,11 +251,8 @@ class RAGRetriever:
             "it": {
             "reasoning": "Impossibile elaborare correttamente le informazioni.",
             "answer": "Mi scuso, ma sto avendo difficoltà nell'elaborare le informazioni in questo momento."
-        },
-        "es": {
-            "reasoning": "No se puede procesar la información correctamente.",
-            "answer": "Me disculpo, pero estoy teniendo dificultades para procesar la información en este momento."
         }
+
     }
     
         messages = fallback_messages.get(language, fallback_messages["en"])
@@ -289,10 +282,6 @@ class RAGRetriever:
         "it": [
             "informazioni insufficienti", "non abbastanza informazioni", "non posso determinare",
             "impossibile rispondere", "informazioni non disponibili", "il contesto non contiene"
-        ],
-        "es": [
-            "información insuficiente", "no hay suficiente información", "no se puede determinar",
-            "no se puede responder", "información no disponible", "el contexto no contiene"
         ]
     }
 

@@ -30,7 +30,7 @@ class AnswerEvaluator:
         Sets up Google GenAI model and Pydantic parser for structured evaluation output.
         """
         self.llm = GoogleGenAI(
-            model_name=config.GEMINI_MODEL_NAME,
+            model_name=config.GEMINI_REASONING_MODEL_NAME,
             api_key=os.getenv("GOOGLE_API_KEY"),
             temperature=0.2
         )

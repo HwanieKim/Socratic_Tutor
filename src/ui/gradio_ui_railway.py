@@ -595,7 +595,7 @@ def create_gradio_interface():
         matched_index_id = gr.State(value=None)
 
         # --- Main Application Container (Initially Hidden) ---
-        with gr.Column(visible=False) as main_app_container:
+        with gr.Column(visible=True) as main_app_container:
         # --- language selector ---
            
             app_title = gr.Markdown(f"# {get_ui_text('app_title', 'en')}", elem_id="app_title")
